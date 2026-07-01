@@ -4,6 +4,25 @@ const { requireAuth } = require('../middleware/auth');
 const { getFranchiseAnalysis } = require('../services/store.service');
 const { getPopulationAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
+const { geocode } = require('../services/geocode.service');
+
+// POST /api/analysis/geocode — 주소 → 좌표
+router.post('/geocode', requireAuth, async (req, res) => {
+  const { address } = req.body;
+  if (!address) {
+    return res.status(400).json({ message: '주소를 입력해주세요.' });
+  }
+  try {
+    const result = await geocode(address);
+    if (!result) {
+      return res.status(404).json({ message: '검색 결과가 없습니다.' });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('지오코딩 오류:', err.message);
+    res.status(500).json({ message: '주소 검색 중 오류가 발생했습니다.' });
+  }
+});
 
 // POST /api/analysis/franchise
 router.post('/franchise', requireAuth, async (req, res) => {

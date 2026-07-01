@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import NaverMap from '../components/NaverMap';
+import AddressSearch from '../components/AddressSearch';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
@@ -24,6 +25,7 @@ export default function Dashboard() {
   const [populationData, setPopulationData] = useState(null);
   const [transitData, setTransitData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [searchedAddress, setSearchedAddress] = useState('');
 
   const runAnalysis = useCallback(async ({ lat, lng }, r) => {
     setCenter({ lat, lng });
@@ -46,6 +48,7 @@ export default function Dashboard() {
   }, []);
 
   const handleMapClick = useCallback(({ lat, lng }) => {
+    setSearchedAddress('');
     runAnalysis({ lat, lng }, radius);
   }, [radius, runAnalysis]);
 
@@ -55,6 +58,11 @@ export default function Dashboard() {
     if (center) runAnalysis(center, newRadius);
   };
 
+  const handleSearchResult = ({ lat, lng, roadAddress, jibunAddress }) => {
+    setSearchedAddress(roadAddress || jibunAddress || '');
+    runAnalysis({ lat, lng }, radius);
+  };
+
   return (
     <div className="dashboard">
       <div className="map-panel">
@@ -62,9 +70,24 @@ export default function Dashboard() {
       </div>
 
       <div className="data-panel">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <span style={{ fontSize: 13, color: '#666' }}>분석 반경</span>
-          <select value={radius} onChange={handleRadiusChange} style={{ fontSize: 13 }}>
+        {/* 주소 검색 */}
+        <AddressSearch onResult={handleSearchResult} />
+
+        {/* 검색된 주소 표시 */}
+        {searchedAddress && (
+          <div style={{
+            fontSize: 12, color: '#5a6a7e', marginBottom: 12,
+            padding: '6px 10px', background: '#f5ecd4',
+            borderRadius: 6, borderLeft: '3px solid #c9a84c',
+          }}>
+            📍 {searchedAddress}
+          </div>
+        )}
+
+        {/* 반경 선택 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
+          <select value={radius} onChange={handleRadiusChange}>
             {RADIUS_OPTIONS.map((r) => (
               <option key={r} value={r}>
                 {r >= 1000 ? `${r / 1000}km` : `${r}m`}
@@ -72,12 +95,13 @@ export default function Dashboard() {
             ))}
           </select>
           {center && center.lat != null && (
-            <span style={{ fontSize: 12, color: '#aaa', marginLeft: 'auto' }}>
-              {Number(center.lat).toFixed(5)}, {Number(center.lng).toFixed(5)}
+            <span style={{ fontSize: 11, color: '#9aa5b1', marginLeft: 'auto' }}>
+              {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
             </span>
           )}
         </div>
 
+        {/* 탭 */}
         <div className="tabs">
           {TABS.map((tab) => (
             <button
@@ -90,12 +114,13 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div style={{ marginTop: 16 }}>
+        {/* 탭 콘텐츠 */}
+        <div>
           {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
           {activeTab === 'franchise' && <FranchiseTab data={franchiseData} loading={loading} />}
           {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
           {!['population', 'franchise', 'transit'].includes(activeTab) && (
-            <p style={{ color: '#aaa', fontSize: 13 }}>
+            <p style={{ color: '#9aa5b1', fontSize: 13, marginTop: 8 }}>
               [{TABS.find((t) => t.key === activeTab)?.label}] — 다음 단계에서 추가 예정
             </p>
           )}
