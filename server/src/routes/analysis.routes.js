@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { getFranchiseAnalysis } = require('../services/store.service');
 const { getPopulationAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
-const { geocode } = require('../services/geocode.service');
+const { geocode, geocodeSuggest } = require('../services/geocode.service');
 
 // POST /api/analysis/geocode — 주소 → 좌표
 router.post('/geocode', requireAuth, async (req, res) => {
@@ -21,6 +21,19 @@ router.post('/geocode', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('지오코딩 오류:', err.message);
     res.status(500).json({ message: '주소 검색 중 오류가 발생했습니다.' });
+  }
+});
+
+// POST /api/analysis/geocode-suggest — 자동완성용 (여러 결과 반환)
+router.post('/geocode-suggest', requireAuth, async (req, res) => {
+  const { address } = req.body;
+  if (!address) return res.json({ results: [] });
+  try {
+    const results = await geocodeSuggest(address);
+    res.json({ results });
+  } catch (err) {
+    console.error('자동완성 오류:', err.message);
+    res.json({ results: [] });
   }
 });
 

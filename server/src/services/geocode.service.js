@@ -61,4 +61,26 @@ async function reverseGeocode(lat, lng) {
   };
 }
 
-module.exports = { geocode, reverseGeocode };
+// 주소 자동완성 — 여러 결과 반환
+async function geocodeSuggest(address, count = 5) {
+  const res = await axios.get(
+    'https://maps.apigw.ntruss.com/map-geocode/v2/geocode',
+    {
+      params: { query: address, count },
+      headers: {
+        'x-ncp-apigw-api-key-id': CLIENT_ID,
+        'x-ncp-apigw-api-key': CLIENT_SECRET,
+      },
+    }
+  );
+
+  const addresses = res.data.addresses || [];
+  return addresses.map((a) => ({
+    lat: parseFloat(a.y),
+    lng: parseFloat(a.x),
+    roadAddress: a.roadAddress,
+    jibunAddress: a.jibunAddress,
+  }));
+}
+
+module.exports = { geocode, geocodeSuggest, reverseGeocode };
