@@ -22,6 +22,10 @@ body {
   align-items: center;
   padding: 0 20px;
   font-weight: 600;
+  font-size: 15px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .login-wrapper {
@@ -29,10 +33,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
 }
 
 .login-card {
-  width: 320px;
+  width: 100%;
+  max-width: 320px;
   background: #fff;
   border-radius: 8px;
   padding: 32px;
@@ -71,25 +77,30 @@ body {
   margin-bottom: 12px;
 }
 
+/* 대시보드 — 데스크탑: 좌지도 우패널 */
 .dashboard {
   flex: 1;
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: 12px;
   padding: 16px;
+  min-height: 0;
 }
 
 .map-panel {
   background: #fff;
   border-radius: 8px;
-  min-height: 600px;
+  min-height: 500px;
   position: relative;
+  overflow: hidden;
 }
 
 .data-panel {
   background: #fff;
   border-radius: 8px;
   padding: 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 88px);
 }
 
 .tabs {
@@ -106,10 +117,47 @@ body {
   padding: 6px 12px;
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .tabs button.active {
   background: #1a2233;
   color: #fff;
   border-color: #1a2233;
+}
+
+/* 모바일 — 위아래로 쌓기 */
+@media (max-width: 768px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .map-panel {
+    min-height: 300px;
+    height: 40vh;
+  }
+
+  .data-panel {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .topbar {
+    font-size: 14px;
+    padding: 0 14px;
+  }
+
+  .tabs button {
+    font-size: 12px;
+    padding: 5px 10px;
+  }
+}
+
+/* 태블릿 */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .dashboard {
+    grid-template-columns: 1fr 1fr;
+  }
 }
