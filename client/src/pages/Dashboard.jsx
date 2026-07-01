@@ -4,7 +4,7 @@ import AddressSearch from '../components/AddressSearch';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
-import PrintReport from '../components/PrintReport';
+import { printReport } from '../components/PrintReport';
 import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis } from '../api/analysis';
 
 const TABS = [
@@ -65,26 +65,13 @@ export default function Dashboard() {
   };
 
   const handlePrint = () => {
-    const report = document.getElementById('print-report');
-    if (report) report.style.display = 'block';
-    window.print();
-    if (report) report.style.display = 'none';
+    printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData });
   };
 
   const hasData = populationData || franchiseData || transitData;
 
   return (
     <>
-      {/* 인쇄용 리포트 (평소엔 숨김) */}
-      <PrintReport
-        center={center}
-        address={searchedAddress}
-        radius={radius}
-        populationData={populationData}
-        franchiseData={franchiseData}
-        transitData={transitData}
-      />
-
       <div className="dashboard">
         <div className="map-panel">
           <NaverMap center={center} radius={radius} onMapClick={handleMapClick} />
