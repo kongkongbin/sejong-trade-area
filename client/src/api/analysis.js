@@ -1,0 +1,16 @@
+import api from './axios';
+
+export async function fetchFranchiseAnalysis({ lat, lng, radius }) {
+  const res = await api.post('/analysis/franchise', { lat, lng, radius });
+  return res.data;
+}
+
+export async function fetchPopulationAnalysis({ lat, lng }) {
+  const res = await api.post('/analysis/population', { lat, lng });
+  return res.data;
+}
+
+export async function fetchTransitAnalysis({ lat, lng, radius }) {
+  const res = await api.post('/analysis/transit', { lat, lng, radius });
+  return res.data;
+}

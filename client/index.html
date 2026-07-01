@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>세종 상권/입지 분석</title>
+    <script>
+      // Naver Maps SDK는 VITE 환경변수를 직접 못 읽으므로 런타임에 주입
+      window.__NAVER_CLIENT_ID__ = '%VITE_NAVER_MAPS_CLIENT_ID%';
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
