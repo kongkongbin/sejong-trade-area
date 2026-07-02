@@ -163,7 +163,7 @@ export default function Dashboard() {
               <option key={r} value={r}>{r >= 1000 ? `${r / 1000}km` : `${r}m`}</option>
             ))}
           </select>
-          {center && center.lat != null && (
+          {center && center.lat != null && !isNaN(Number(center.lat)) && (
             <span style={{ fontSize: 11, color: '#9aa5b1' }}>
               {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
             </span>

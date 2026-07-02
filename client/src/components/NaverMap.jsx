@@ -61,6 +61,7 @@ export default function NaverMap({ center, radius, onMapClick, storeMarkers, act
   // center/radius 업데이트
   useEffect(() => {
     if (!mapInstanceRef.current || !center) return;
+    if (!center.lat || !center.lng || isNaN(Number(center.lat))) return;
     const naver = window.naver.maps;
     const pos = new naver.LatLng(center.lat, center.lng);
 
