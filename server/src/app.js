@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth.routes');
 const analysisRoutes = require('./routes/analysis.routes');
+const locationRoutes = require('./routes/location.routes');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/locations', locationRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: '존재하지 않는 경로입니다.' });

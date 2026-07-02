@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import NaverMap from '../components/NaverMap';
 import AddressSearch from '../components/AddressSearch';
 import ScoreCard from '../components/ScoreCard';
+import AIOpinionCard from '../components/AIOpinionCard';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
@@ -184,6 +185,20 @@ export default function Dashboard() {
         {/* 종합 점수 카드 */}
         {(scoreData || loading) && (
           <ScoreCard scoreData={scoreData} loading={loading && !scoreData} />
+        )}
+
+        {/* AI 의견 생성 */}
+        {hasData && !loading && (
+          <AIOpinionCard
+            center={center}
+            address={searchedAddress}
+            radius={radius}
+            populationData={populationData}
+            franchiseData={franchiseData}
+            transitData={transitData}
+            facilityData={facilityData}
+            scoreData={scoreData}
+          />
         )}
 
         <div className="tabs">
