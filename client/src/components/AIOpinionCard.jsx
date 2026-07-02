@@ -34,8 +34,32 @@ export default function AIOpinionCard({
 
       // 2. AI 의견 생성
       setStep('generating');
+
+      // 무거운 매장 리스트 제외하고 전송
+      const lightFranchise = franchiseData ? {
+        totalCount: franchiseData.totalCount,
+        byCategory: franchiseData.byCategory?.map(({ code, name, count, competitionLevel }) => ({
+          code, name, count, competitionLevel,
+        })),
+      } : null;
+
+      const lightFacility = facilityData ? {
+        hospital: { count: facilityData.hospital?.count || 0, items: facilityData.hospital?.items?.slice(0, 3) || [] },
+        kindergarten: { count: facilityData.kindergarten?.count || 0 },
+        elementary: { count: facilityData.elementary?.count || 0 },
+        middle: { count: facilityData.middle?.count || 0 },
+        high: { count: facilityData.high?.count || 0 },
+      } : null;
+
       const aiRes = await api.post(`/locations/${id}/generate-ai`, {
-        analysisData: { populationData, franchiseData, transitData, facilityData, scoreData, radius },
+        analysisData: {
+          populationData,
+          franchiseData: lightFranchise,
+          transitData,
+          facilityData: lightFacility,
+          scoreData,
+          radius,
+        },
       });
 
       setOpinion(aiRes.data.opinion);
