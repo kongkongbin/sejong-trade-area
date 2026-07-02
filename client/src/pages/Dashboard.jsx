@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import NaverMap from '../components/NaverMap';
 import AddressSearch from '../components/AddressSearch';
 import ScoreCard from '../components/ScoreCard';
-import AIOpinionCard from '../components/AIOpinionCard';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
@@ -28,6 +28,7 @@ const TABS = [
 const RADIUS_OPTIONS = [100, 300, 500, 1000, 1500, 2000, 3000];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('population');
   const [radius, setRadius] = useState(500);
   const [center, setCenter] = useState(null);
@@ -187,18 +188,28 @@ export default function Dashboard() {
           <ScoreCard scoreData={scoreData} loading={loading && !scoreData} />
         )}
 
-        {/* AI 의견 생성 */}
+        {/* 입지 저장 버튼 */}
         {hasData && !loading && (
-          <AIOpinionCard
-            center={center}
-            address={searchedAddress}
-            radius={radius}
-            populationData={populationData}
-            franchiseData={franchiseData}
-            transitData={transitData}
-            facilityData={facilityData}
-            scoreData={scoreData}
-          />
+          <button
+            onClick={() => {
+              const params = new URLSearchParams({
+                address: searchedAddress || '',
+                lat: center?.lat || '',
+                lng: center?.lng || '',
+                radius,
+              });
+              navigate(`/location/new?${params.toString()}`);
+            }}
+            style={{
+              width: '100%', height: 42, marginBottom: 14,
+              background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+              color: '#0d1b2e', border: 'none', borderRadius: 8,
+              fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+              cursor: 'pointer', boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
+            }}
+          >
+            📋 이 위치 입지 저장하기
+          </button>
         )}
 
         <div className="tabs">

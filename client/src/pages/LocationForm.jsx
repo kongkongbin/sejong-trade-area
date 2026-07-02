@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
+import AIOpinionEditor from '../components/AIOpinionEditor';
 
 const TABS = ['재무정보', '업종정보', '현장체크', '계약정보', '메모'];
 
@@ -28,21 +29,13 @@ function ScoreInput({ value, onChange }) {
   return (
     <div style={{ display: 'flex', gap: 6 }}>
       {[1, 2, 3, 4, 5].map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onChange(v)}
-          style={{
-            width: 36, height: 36, borderRadius: 6,
-            border: '1.5px solid #e2e6ea',
-            background: value >= v ? '#0d1b2e' : '#fff',
-            color: value >= v ? '#fff' : '#aaa',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          {v}
-        </button>
+        <button key={v} type="button" onClick={() => onChange(v)} style={{
+          width: 36, height: 36, borderRadius: 6,
+          border: '1.5px solid #e2e6ea',
+          background: value >= v ? '#0d1b2e' : '#fff',
+          color: value >= v ? '#fff' : '#aaa',
+          fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+        }}>{v}</button>
       ))}
     </div>
   );
@@ -58,21 +51,65 @@ const defaultForm = {
   field_memo: '', contract_period: '', landlord_asking_rent: '', desired_rent: '',
 };
 
+const VERDICT_OPTIONS = [
+  { value: 'GO', label: '✅ GO', color: '#2ecc71' },
+  { value: 'CONDITIONAL_GO', label: '⚠️ 조건부 GO', color: '#f39c12' },
+  { value: 'NO_GO', label: '❌ NO-GO', color: '#e74c3c' },
+];
+
 export default function LocationForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState(defaultForm);
   const [addressInput, setAddressInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState(null);
   const [msg, setMsg] = useState('');
+  const [aiData, setAiData] = useState(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [showAiEditor, setShowAiEditor] = useState(false);
 
   useEffect(() => {
     if (id) {
+      // 수정 모드 — 기존 데이터 불러오기
       api.get(`/locations/${id}`).then(res => {
-        setForm(res.data);
-        setAddressInput(res.data.address);
+        const data = res.data;
+        setForm(data);
+        setAddressInput(data.address);
+        setSavedId(Number(id));
+
+        // 저장된 AI 데이터 있으면 불러오기
+        if (data.ai_verdict) {
+          setAiData({
+            verdict: data.ai_verdict,
+            summary: data.ai_summary || '',
+            strengths: data.ai_strengths ? JSON.parse(data.ai_strengths) : [],
+            risks: data.ai_risks ? JSON.parse(data.ai_risks) : [],
+            financial: data.ai_financial || '',
+            checklist: data.ai_checklist ? JSON.parse(data.ai_checklist) : [],
+            verdictReason: data.ai_verdict_reason || '',
+          });
+        }
       });
+    } else {
+      // 신규 — URL 파라미터에서 주소/좌표 가져오기
+      const address = searchParams.get('address');
+      const lat = searchParams.get('lat');
+      const lng = searchParams.get('lng');
+      const radius = searchParams.get('radius');
+
+      if (address || lat) {
+        setForm(f => ({
+          ...f,
+          address: address || '',
+          lat: lat ? Number(lat) : null,
+          lng: lng ? Number(lng) : null,
+          analysis_radius: radius ? Number(radius) : 500,
+        }));
+        setAddressInput(address || '');
+      }
     }
   }, [id]);
 
@@ -93,16 +130,18 @@ export default function LocationForm() {
   }
 
   async function handleSave() {
-    if (!form.address) { setMsg('주소를 먼저 검색해주세요.'); return; }
+    if (!form.address) { setMsg('주소를 먼저 입력해주세요.'); return; }
     setSaving(true);
     try {
-      if (id) {
-        await api.put(`/locations/${id}`, form);
+      if (id || savedId) {
+        await api.put(`/locations/${id || savedId}`, form);
+        setSavedId(id || savedId);
+        setMsg('✅ 저장되었습니다.');
       } else {
         const res = await api.post('/locations', form);
-        navigate(`/location/${res.data.id}`);
+        setSavedId(res.data.id);
+        setMsg('✅ 저장되었습니다. 이제 AI 분석을 생성할 수 있습니다.');
       }
-      setMsg('✅ 저장되었습니다.');
     } catch {
       setMsg('❌ 저장 실패');
     } finally {
@@ -110,21 +149,44 @@ export default function LocationForm() {
     }
   }
 
+  async function handleGenerateAI() {
+    if (!savedId) { setMsg('먼저 저장해주세요.'); return; }
+    setAiGenerating(true);
+    try {
+      const res = await api.post(`/locations/${savedId}/generate-ai`, {
+        analysisData: { radius: form.analysis_radius },
+      });
+      setAiData(res.data);
+      setShowAiEditor(true);
+      setMsg('✅ AI 분석이 생성되었습니다.');
+    } catch {
+      setMsg('❌ AI 분석 생성 실패');
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
+  const totalInitial = (Number(form.premium)||0) + (Number(form.deposit)||0) +
+    (Number(form.interior_budget)||0) + (Number(form.other_initial_cost)||0);
+
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <button onClick={() => navigate('/locations')} style={{
           background: 'none', border: 'none', cursor: 'pointer',
           fontSize: 13, color: '#5a6a7e', fontFamily: 'inherit',
         }}>← 목록</button>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-          {id ? '입지 데이터 수정' : '입지 데이터 입력'}
+          {id ? '입지 데이터 수정' : '새 입지 추가'}
         </h2>
+        {savedId && (
+          <span style={{ fontSize: 12, color: '#2ecc71', marginLeft: 4 }}>✅ 저장됨</span>
+        )}
       </div>
 
-      {/* 주소 검색 */}
-      <div style={{ background: '#fff', borderRadius: 10, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <label style={labelStyle}>분석 주소</label>
+      {/* 주소 */}
+      <div style={{ background: '#fff', borderRadius: 10, padding: 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <label style={labelStyle}>📍 분석 위치</label>
         <form onSubmit={handleAddressSearch} style={{ display: 'flex', gap: 8 }}>
           <input
             value={addressInput}
@@ -137,15 +199,27 @@ export default function LocationForm() {
             border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
           }}>검색</button>
         </form>
-        {form.lat && (
+        {form.lat && !isNaN(Number(form.lat)) && (
           <div style={{ fontSize: 12, color: '#2ecc71', marginTop: 6 }}>
             📍 {form.address} ({Number(form.lat).toFixed(4)}, {Number(form.lng).toFixed(4)})
           </div>
         )}
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label style={{ ...labelStyle, margin: 0 }}>분석 반경</label>
+          <select
+            value={form.analysis_radius}
+            onChange={e => set('analysis_radius', Number(e.target.value))}
+            style={{ height: 32, padding: '0 8px', border: '1px solid #e2e6ea', borderRadius: 6, fontSize: 12, fontFamily: 'inherit' }}
+          >
+            {[100, 300, 500, 1000, 1500, 2000, 3000].map(r => (
+              <option key={r} value={r}>{r >= 1000 ? `${r/1000}km` : `${r}m`}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* 탭 */}
-      <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+      {/* 입력 탭 */}
+      <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden', marginBottom: 14 }}>
         <div style={{ display: 'flex', borderBottom: '1px solid #e2e6ea' }}>
           {TABS.map((tab, i) => (
             <button key={i} onClick={() => setActiveTab(i)} style={{
@@ -178,7 +252,7 @@ export default function LocationForm() {
               </Field>
               <Field label="총 초기투자금">
                 <div style={{ height: 38, padding: '0 12px', lineHeight: '38px', background: '#f5ecd4', borderRadius: 8, fontSize: 14, fontWeight: 700, color: '#0d1b2e' }}>
-                  {((Number(form.premium)||0)+(Number(form.deposit)||0)+(Number(form.interior_budget)||0)+(Number(form.other_initial_cost)||0)).toLocaleString()}만원
+                  {totalInitial.toLocaleString()}만원
                 </div>
               </Field>
             </div>
@@ -268,10 +342,7 @@ export default function LocationForm() {
                 value={form.field_memo}
                 onChange={e => set('field_memo', e.target.value)}
                 placeholder="현장에서 느낀 점, 특이사항 등 자유롭게 작성"
-                style={{
-                  ...inputStyle, height: 200, padding: 12,
-                  resize: 'vertical', lineHeight: 1.6,
-                }}
+                style={{ ...inputStyle, height: 200, padding: 12, resize: 'vertical', lineHeight: 1.6 }}
               />
             </Field>
           )}
@@ -279,25 +350,105 @@ export default function LocationForm() {
       </div>
 
       {/* 저장 버튼 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         {msg && <span style={{ fontSize: 13, color: msg.includes('✅') ? '#2ecc71' : '#e74c3c' }}>{msg}</span>}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            marginLeft: 'auto', height: 42, padding: '0 24px',
-            background: 'linear-gradient(135deg, #0d1b2e, #1e3a5f)',
-            color: '#fff', border: 'none', borderRadius: 8,
-            fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-            cursor: saving ? 'not-allowed' : 'pointer',
-          }}
-        >
+        <button onClick={handleSave} disabled={saving} style={{
+          marginLeft: 'auto', height: 42, padding: '0 24px',
+          background: 'linear-gradient(135deg, #0d1b2e, #1e3a5f)',
+          color: '#fff', border: 'none', borderRadius: 8,
+          fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+          cursor: saving ? 'not-allowed' : 'pointer',
+        }}>
           {saving ? '저장 중...' : '💾 저장'}
         </button>
       </div>
+
+      {/* AI 분석 섹션 — 저장 후에만 표시 */}
+      {savedId && (
+        <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>🤖 AI 종합 분석</h3>
+            <button
+              onClick={handleGenerateAI}
+              disabled={aiGenerating}
+              style={{
+                height: 36, padding: '0 16px',
+                background: aiGenerating ? '#aaa' : 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+                color: '#0d1b2e', border: 'none', borderRadius: 8,
+                fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                cursor: aiGenerating ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {aiGenerating ? '분석 중... (10~20초)' : aiData ? '🔄 재분석' : '✨ AI 분석 생성'}
+            </button>
+          </div>
+
+          {!aiData && !aiGenerating && (
+            <p style={{ fontSize: 13, color: '#9aa5b1', margin: 0 }}>
+              데이터를 저장한 후 AI 분석을 생성하세요. 입력한 재무/현장 데이터를 바탕으로 종합 의견을 작성해드립니다.
+            </p>
+          )}
+
+          {aiGenerating && (
+            <p style={{ fontSize: 13, color: '#5a6a7e', margin: 0 }}>AI가 분석 중입니다...</p>
+          )}
+
+          {aiData && (
+            <div>
+              {/* 판정 뱃지 */}
+              {aiData.verdict && (
+                <div style={{
+                  display: 'inline-block', padding: '6px 16px', borderRadius: 8,
+                  background: aiData.verdict === 'GO' ? '#2ecc71' : aiData.verdict === 'NO_GO' ? '#e74c3c' : '#f39c12',
+                  color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 14,
+                }}>
+                  {aiData.verdict === 'GO' ? '✅ GO' : aiData.verdict === 'NO_GO' ? '❌ NO-GO' : '⚠️ 조건부 GO'}
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowAiEditor(!showAiEditor)}
+                style={{
+                  marginLeft: 10, fontSize: 12, padding: '5px 12px',
+                  border: '1px solid #e0e2e6', borderRadius: 6,
+                  background: '#fff', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {showAiEditor ? '미리보기' : '✏️ 편집'}
+              </button>
+
+              {showAiEditor ? (
+                <AIOpinionEditor
+                  locationId={savedId}
+                  initialData={aiData}
+                  onSave={updated => setAiData({ ...aiData, ...updated })}
+                />
+              ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.8, color: '#2d3748', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+                  {aiData.summary && <p style={{ marginBottom: 10 }}>{aiData.summary}</p>}
+                  {aiData.strengths?.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <strong style={{ color: '#2ecc71' }}>✅ 강점</strong>
+                      {aiData.strengths.map((s, i) => <div key={i} style={{ paddingLeft: 12, marginTop: 4 }}>· {s}</div>)}
+                    </div>
+                  )}
+                  {aiData.risks?.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <strong style={{ color: '#e74c3c' }}>⚠️ 리스크</strong>
+                      {aiData.risks.map((r, i) => <div key={i} style={{ paddingLeft: 12, marginTop: 4 }}>· {r}</div>)}
+                    </div>
+                  )}
+                  {aiData.verdictReason && (
+                    <div style={{ fontSize: 12, color: '#5a6a7e', fontStyle: 'italic', marginTop: 8 }}>
+                      {aiData.verdictReason}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-// AI 의견 생성 기능은 Dashboard에서 분석 후 location과 연동하는 방식으로 추가 예정
-// 현재 LocationForm에서는 저장된 AI 의견만 표시
