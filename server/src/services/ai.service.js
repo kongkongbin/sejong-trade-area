@@ -24,11 +24,11 @@ function parseAIResponse(text) {
     }
     else if (trimmed.startsWith('강점') || trimmed.startsWith('2. 강점')) {
       const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
-      result.strengths = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+      result.strengths = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(s => s && !s.match(/^-+$/));
     }
     else if (trimmed.startsWith('리스크') || trimmed.startsWith('3. 리스크')) {
       const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
-      result.risks = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+      result.risks = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(s => s && !s.match(/^-+$/));
     }
     else if (trimmed.startsWith('재무 분석') || trimmed.startsWith('4. 재무')) {
       result.financial = trimmed.replace(/^재무 분석.*?\n/, '').replace(/^4\. 재무.*?\n/, '').trim();
