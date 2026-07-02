@@ -82,13 +82,18 @@ export default function LocationForm() {
 
         // 저장된 AI 데이터 있으면 불러오기
         if (data.ai_verdict) {
+          const parseJson = (val) => {
+            if (!val) return [];
+            if (Array.isArray(val)) return val;
+            try { return JSON.parse(val); } catch { return []; }
+          };
           setAiData({
             verdict: data.ai_verdict,
             summary: data.ai_summary || '',
-            strengths: data.ai_strengths ? JSON.parse(data.ai_strengths) : [],
-            risks: data.ai_risks ? JSON.parse(data.ai_risks) : [],
+            strengths: parseJson(data.ai_strengths),
+            risks: parseJson(data.ai_risks),
             financial: data.ai_financial || '',
-            checklist: data.ai_checklist ? JSON.parse(data.ai_checklist) : [],
+            checklist: parseJson(data.ai_checklist),
             verdictReason: data.ai_verdict_reason || '',
           });
         }
