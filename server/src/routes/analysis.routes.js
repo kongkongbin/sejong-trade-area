@@ -5,6 +5,7 @@ const { getFranchiseAnalysis } = require('../services/store.service');
 const { getPopulationAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
 const { getFacilityAnalysis } = require('../services/facility.service');
+const { calcScore } = require('../services/score.service');
 const { geocode, geocodeSuggest, reverseGeocode } = require('../services/geocode.service');
 
 // POST /api/analysis/geocode — 주소 → 좌표
@@ -101,6 +102,18 @@ router.post('/transit', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('대중교통 분석 오류:', err.message);
     res.status(500).json({ message: '대중교통 분석 중 오류가 발생했습니다.' });
+  }
+});
+
+// POST /api/analysis/score — 종합 점수 계산
+router.post('/score', requireAuth, async (req, res) => {
+  const { populationData, transitData, franchiseData, facilityData } = req.body;
+  try {
+    const result = await calcScore({ populationData, transitData, franchiseData, facilityData });
+    res.json(result);
+  } catch (err) {
+    console.error('점수 계산 오류:', err.message);
+    res.status(500).json({ message: '점수 계산 중 오류가 발생했습니다.' });
   }
 });
 

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import NaverMap from '../components/NaverMap';
 import AddressSearch from '../components/AddressSearch';
+import ScoreCard from '../components/ScoreCard';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
@@ -8,7 +9,11 @@ import HospitalTab from '../components/tabs/HospitalTab';
 import ChildcareTab from '../components/tabs/ChildcareTab';
 import SchoolTab from '../components/tabs/SchoolTab';
 import { printReport } from '../components/PrintReport';
-import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis, fetchFacilityAnalysis, fetchReverseGeocode } from '../api/analysis';
+import {
+  fetchFranchiseAnalysis, fetchPopulationAnalysis,
+  fetchTransitAnalysis, fetchFacilityAnalysis,
+  fetchReverseGeocode, fetchScore,
+} from '../api/analysis';
 
 const TABS = [
   { key: 'population', label: '생활인구' },
@@ -29,6 +34,7 @@ export default function Dashboard() {
   const [populationData, setPopulationData] = useState(null);
   const [transitData, setTransitData] = useState(null);
   const [facilityData, setFacilityData] = useState(null);
+  const [scoreData, setScoreData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchedAddress, setSearchedAddress] = useState('');
   const [storeMarkers, setStoreMarkers] = useState([]);
@@ -41,6 +47,7 @@ export default function Dashboard() {
     setPopulationData(null);
     setTransitData(null);
     setFacilityData(null);
+    setScoreData(null);
     setStoreMarkers([]);
     setActiveStore(null);
 
@@ -51,12 +58,30 @@ export default function Dashboard() {
       fetchFacilityAnalysis({ lat, lng, radius: r }),
     ]);
 
-    if (franchise.status === 'fulfilled') setFranchiseData(franchise.value);
-    if (population.status === 'fulfilled') setPopulationData(population.value);
-    if (transit.status === 'fulfilled') setTransitData(transit.value);
-    if (facility.status === 'fulfilled') setFacilityData(facility.value);
+    const fd = franchise.status === 'fulfilled' ? franchise.value : null;
+    const pd = population.status === 'fulfilled' ? population.value : null;
+    const td = transit.status === 'fulfilled' ? transit.value : null;
+    const fcd = facility.status === 'fulfilled' ? facility.value : null;
+
+    if (fd) setFranchiseData(fd);
+    if (pd) setPopulationData(pd);
+    if (td) setTransitData(td);
+    if (fcd) setFacilityData(fcd);
 
     setLoading(false);
+
+    // 점수 계산 (4개 분석 끝난 후)
+    if (fd || pd || td || fcd) {
+      try {
+        const score = await fetchScore({
+          populationData: pd,
+          transitData: td,
+          franchiseData: fd,
+          facilityData: fcd,
+        });
+        setScoreData(score);
+      } catch {}
+    }
   }, []);
 
   const handleMapClick = useCallback(async ({ lat, lng }) => {
@@ -83,11 +108,7 @@ export default function Dashboard() {
   };
 
   const handleStoreClick = useCallback((storeOrAction) => {
-    if (!storeOrAction) {
-      setStoreMarkers([]);
-      setActiveStore(null);
-      return;
-    }
+    if (!storeOrAction) { setStoreMarkers([]); setActiveStore(null); return; }
     if (storeOrAction.bulk) {
       setStoreMarkers(storeOrAction.stores.map(s => ({ ...s, categoryCode: storeOrAction.categoryCode })));
       setActiveStore(null);
@@ -97,7 +118,7 @@ export default function Dashboard() {
   }, []);
 
   const handlePrint = () => {
-    printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData });
+    printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData, facilityData, scoreData });
   };
 
   const hasData = populationData || franchiseData || transitData || facilityData;
@@ -131,9 +152,7 @@ export default function Dashboard() {
           <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
           <select value={radius} onChange={handleRadiusChange}>
             {RADIUS_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r >= 1000 ? `${r / 1000}km` : `${r}m`}
-              </option>
+              <option key={r} value={r}>{r >= 1000 ? `${r / 1000}km` : `${r}m`}</option>
             ))}
           </select>
           {center && center.lat != null && (
@@ -142,21 +161,23 @@ export default function Dashboard() {
             </span>
           )}
           {hasData && (
-            <button
-              onClick={handlePrint}
-              style={{
-                marginLeft: 'auto', height: 32, padding: '0 12px',
-                background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
-                color: '#0d1b2e', border: 'none', borderRadius: 6,
-                fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                cursor: 'pointer', whiteSpace: 'nowrap',
-                boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
-              }}
-            >
+            <button onClick={handlePrint} style={{
+              marginLeft: 'auto', height: 32, padding: '0 12px',
+              background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+              color: '#0d1b2e', border: 'none', borderRadius: 6,
+              fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
+            }}>
               🖨️ 인쇄/PDF
             </button>
           )}
         </div>
+
+        {/* 종합 점수 카드 */}
+        {(scoreData || loading) && (
+          <ScoreCard scoreData={scoreData} loading={loading && !scoreData} />
+        )}
 
         <div className="tabs">
           {TABS.map((tab) => (
@@ -165,10 +186,7 @@ export default function Dashboard() {
               className={activeTab === tab.key ? 'active' : ''}
               onClick={() => {
                 setActiveTab(tab.key);
-                if (tab.key !== 'franchise') {
-                  setStoreMarkers([]);
-                  setActiveStore(null);
-                }
+                if (tab.key !== 'franchise') { setStoreMarkers([]); setActiveStore(null); }
               }}
             >
               {tab.label}
@@ -179,12 +197,7 @@ export default function Dashboard() {
         <div>
           {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
           {activeTab === 'franchise' && (
-            <FranchiseTab
-              data={franchiseData}
-              loading={loading}
-              onStoreClick={handleStoreClick}
-              activeStoreId={activeStore?.id}
-            />
+            <FranchiseTab data={franchiseData} loading={loading} onStoreClick={handleStoreClick} activeStoreId={activeStore?.id} />
           )}
           {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
           {activeTab === 'hospital' && <HospitalTab data={facilityData} loading={loading} />}

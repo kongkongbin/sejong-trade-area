@@ -24,3 +24,8 @@ export async function fetchReverseGeocode({ lat, lng }) {
   const res = await api.post('/analysis/reverse-geocode', { lat, lng });
   return res.data;
 }
+
+export async function fetchScore({ populationData, transitData, franchiseData, facilityData }) {
+  const res = await api.post('/analysis/score', { populationData, transitData, franchiseData, facilityData });
+  return res.data;
+}
