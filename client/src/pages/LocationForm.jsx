@@ -139,7 +139,7 @@ export default function LocationForm() {
         </form>
         {form.lat && (
           <div style={{ fontSize: 12, color: '#2ecc71', marginTop: 6 }}>
-            📍 {form.address} ({form.lat?.toFixed(4)}, {form.lng?.toFixed(4)})
+            📍 {form.address} ({Number(form.lat).toFixed(4)}, {Number(form.lng).toFixed(4)})
           </div>
         )}
       </div>
@@ -298,3 +298,6 @@ export default function LocationForm() {
     </div>
   );
 }
+
+// AI 의견 생성 기능은 Dashboard에서 분석 후 location과 연동하는 방식으로 추가 예정
+// 현재 LocationForm에서는 저장된 AI 의견만 표시
