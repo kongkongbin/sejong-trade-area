@@ -8,7 +8,7 @@ import HospitalTab from '../components/tabs/HospitalTab';
 import ChildcareTab from '../components/tabs/ChildcareTab';
 import SchoolTab from '../components/tabs/SchoolTab';
 import { printReport } from '../components/PrintReport';
-import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis, fetchFacilityAnalysis } from '../api/analysis';
+import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis, fetchFacilityAnalysis, fetchReverseGeocode } from '../api/analysis';
 
 const TABS = [
   { key: 'population', label: '생활인구' },
@@ -59,9 +59,16 @@ export default function Dashboard() {
     setLoading(false);
   }, []);
 
-  const handleMapClick = useCallback(({ lat, lng }) => {
+  const handleMapClick = useCallback(async ({ lat, lng }) => {
     setSearchedAddress('');
     runAnalysis({ lat, lng }, radius);
+    try {
+      const geo = await fetchReverseGeocode({ lat, lng });
+      if (geo) {
+        const addr = geo.roadAddress || `${geo.sidoName} ${geo.sigunguName} ${geo.dongName}`;
+        setSearchedAddress(addr);
+      }
+    } catch {}
   }, [radius, runAnalysis]);
 
   const handleRadiusChange = (e) => {

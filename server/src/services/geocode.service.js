@@ -36,7 +36,7 @@ async function reverseGeocode(lat, lng) {
     {
       params: {
         coords: `${lng},${lat}`,
-        orders: 'admcode',
+        orders: 'admcode,roadaddr',
         output: 'json',
       },
       headers: {
@@ -49,15 +49,29 @@ async function reverseGeocode(lat, lng) {
   const results = res.data.results;
   if (!results || results.length === 0) return null;
 
-  const region = results[0].region;
+  const admResult = results.find(r => r.name === 'admcode');
+  const roadResult = results.find(r => r.name === 'roadaddr');
+
+  const region = admResult?.region || results[0].region;
   const area3 = region.area3;
   const area2 = region.area2;
-  const code = results[0].code?.id || '';
+  const area1 = region.area1;
+  const code = admResult?.code?.id || '';
+
+  // 도로명 주소 조합
+  let roadAddress = null;
+  if (roadResult) {
+    const r = roadResult;
+    const land = r.land;
+    roadAddress = `${area1.name} ${area2.name} ${land?.name || ''} ${land?.number1 || ''}${land?.number2 ? '-' + land.number2 : ''}`.trim();
+  }
 
   return {
     dongName: area3.name,
     sigunguName: area2.name,
+    sidoName: area1.name,
     dongCode: code,
+    roadAddress,
   };
 }
 

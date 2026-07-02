@@ -5,7 +5,7 @@ const { getFranchiseAnalysis } = require('../services/store.service');
 const { getPopulationAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
 const { getFacilityAnalysis } = require('../services/facility.service');
-const { geocode, geocodeSuggest } = require('../services/geocode.service');
+const { geocode, geocodeSuggest, reverseGeocode } = require('../services/geocode.service');
 
 // POST /api/analysis/geocode — 주소 → 좌표
 router.post('/geocode', requireAuth, async (req, res) => {
@@ -35,6 +35,24 @@ router.post('/geocode-suggest', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('자동완성 오류:', err.message);
     res.json({ results: [] });
+  }
+});
+
+// POST /api/analysis/reverse-geocode — 좌표 → 주소
+router.post('/reverse-geocode', requireAuth, async (req, res) => {
+  const { lat, lng } = req.body;
+  if (!lat || !lng) {
+    return res.status(400).json({ message: '좌표(lat, lng)가 필요합니다.' });
+  }
+  try {
+    const result = await reverseGeocode(lat, lng);
+    if (!result) {
+      return res.status(404).json({ message: '주소를 찾을 수 없습니다.' });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('역지오코딩 오류:', err.message);
+    res.status(500).json({ message: '주소 변환 중 오류가 발생했습니다.' });
   }
 });
 

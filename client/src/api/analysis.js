@@ -19,3 +19,8 @@ export async function fetchFacilityAnalysis({ lat, lng, radius }) {
   const res = await api.post('/analysis/facility', { lat, lng, radius });
   return res.data;
 }
+
+export async function fetchReverseGeocode({ lat, lng }) {
+  const res = await api.post('/analysis/reverse-geocode', { lat, lng });
+  return res.data;
+}
