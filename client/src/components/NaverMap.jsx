@@ -25,13 +25,13 @@ function makeMarkerIcon(color, label) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-export default function NaverMap({ center, radius, onMapClick, storeMarkers }) {
+export default function NaverMap({ center, radius, onMapClick, storeMarkers, activeStore }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const circleRef = useRef(null);
   const onMapClickRef = useRef(onMapClick);
-  const storeMarkerRefsRef = useRef([]);
+  const storeMarkerRefsRef = useRef([]); // { marker, store } 쌍으로 저장
   const infoWindowRef = useRef(null);
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function NaverMap({ center, radius, onMapClick, storeMarkers }) {
     const naver = window.naver.maps;
 
     // 기존 마커 제거
-    storeMarkerRefsRef.current.forEach((m) => m.setMap(null));
+    storeMarkerRefsRef.current.forEach(({ marker }) => marker.setMap(null));
     storeMarkerRefsRef.current = [];
 
     // 인포윈도우 초기화
@@ -137,9 +137,32 @@ export default function NaverMap({ center, radius, onMapClick, storeMarkers }) {
         infoWindow.open(mapInstanceRef.current, marker);
       });
 
-      storeMarkerRefsRef.current.push(marker);
+      storeMarkerRefsRef.current.push({ marker, store });
     });
   }, [storeMarkers]);
+
+  // activeStore 변경 시 해당 마커로 지도 이동 + 인포윈도우 열기
+  useEffect(() => {
+    if (!mapInstanceRef.current || !activeStore || !infoWindowRef.current) return;
+    const naver = window.naver.maps;
+
+    // 해당 매장 마커 찾기
+    const found = storeMarkerRefsRef.current.find(({ store }) => store.id === activeStore.id);
+    if (!found) return;
+
+    const { marker, store } = found;
+    mapInstanceRef.current.setCenter(marker.getPosition());
+    mapInstanceRef.current.setZoom(17);
+
+    infoWindowRef.current.setContent(`
+      <div style="padding:8px 12px;font-family:'Noto Sans KR',sans-serif;min-width:140px;">
+        <div style="font-size:13px;font-weight:600;color:#0d1b2e;">${store.name}${store.branch ? ' ' + store.branch : ''}</div>
+        <div style="font-size:11px;color:#5a6a7e;margin-top:2px;">${store.category}</div>
+        <div style="font-size:11px;color:#9aa5b1;margin-top:2px;">${store.address}</div>
+      </div>
+    `);
+    infoWindowRef.current.open(mapInstanceRef.current, marker);
+  }, [activeStore]);
 
   return <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: 500 }} />;
 }

@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [searchedAddress, setSearchedAddress] = useState('');
   const [storeMarkers, setStoreMarkers] = useState([]);
-  const [activeStoreId, setActiveStoreId] = useState(null);
+  const [activeStore, setActiveStore] = useState(null);
 
   const runAnalysis = useCallback(async ({ lat, lng }, r) => {
     setCenter({ lat, lng });
@@ -37,7 +37,7 @@ export default function Dashboard() {
     setPopulationData(null);
     setTransitData(null);
     setStoreMarkers([]);
-    setActiveStoreId(null);
+    setActiveStore(null);
 
     const [franchise, population, transit] = await Promise.allSettled([
       fetchFranchiseAnalysis({ lat, lng, radius: r }),
@@ -68,27 +68,21 @@ export default function Dashboard() {
     runAnalysis({ lat, lng }, radius);
   };
 
-  // 매장 마커 클릭 핸들러
   const handleStoreClick = useCallback((storeOrAction) => {
     if (!storeOrAction) {
-      // null이면 마커 초기화
       setStoreMarkers([]);
-      setActiveStoreId(null);
+      setActiveStore(null);
       return;
     }
-
     if (storeOrAction.bulk) {
-      // 업종 전체 마커 표시
       setStoreMarkers(storeOrAction.stores.map(s => ({
-        ...s,
-        categoryCode: storeOrAction.categoryCode,
+        ...s, categoryCode: storeOrAction.categoryCode,
       })));
-      setActiveStoreId(null);
+      setActiveStore(null);
       return;
     }
-
-    // 단일 매장 클릭 — 하이라이트
-    setActiveStoreId(storeOrAction.id);
+    // 단일 매장 클릭 — 지도 이동 + 인포윈도우 열기
+    setActiveStore(storeOrAction);
   }, []);
 
   const handlePrint = () => {
@@ -98,99 +92,97 @@ export default function Dashboard() {
   const hasData = populationData || franchiseData || transitData;
 
   return (
-    <>
-      <div className="dashboard">
-        <div className="map-panel">
-          <NaverMap
-            center={center}
-            radius={radius}
-            onMapClick={handleMapClick}
-            storeMarkers={storeMarkers}
-          />
+    <div className="dashboard">
+      <div className="map-panel">
+        <NaverMap
+          center={center}
+          radius={radius}
+          onMapClick={handleMapClick}
+          storeMarkers={storeMarkers}
+          activeStore={activeStore}
+        />
+      </div>
+
+      <div className="data-panel">
+        <AddressSearch onResult={handleSearchResult} />
+
+        {searchedAddress && (
+          <div style={{
+            fontSize: 12, color: '#5a6a7e', marginBottom: 12,
+            padding: '6px 10px', background: '#f5ecd4',
+            borderRadius: 6, borderLeft: '3px solid #c9a84c',
+          }}>
+            📍 {searchedAddress}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
+          <select value={radius} onChange={handleRadiusChange}>
+            {RADIUS_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r >= 1000 ? `${r / 1000}km` : `${r}m`}
+              </option>
+            ))}
+          </select>
+          {center && center.lat != null && (
+            <span style={{ fontSize: 11, color: '#9aa5b1' }}>
+              {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
+            </span>
+          )}
+          {hasData && (
+            <button
+              onClick={handlePrint}
+              style={{
+                marginLeft: 'auto', height: 32, padding: '0 12px',
+                background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+                color: '#0d1b2e', border: 'none', borderRadius: 6,
+                fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+                boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
+              }}
+            >
+              🖨️ 인쇄/PDF
+            </button>
+          )}
         </div>
 
-        <div className="data-panel">
-          <AddressSearch onResult={handleSearchResult} />
+        <div className="tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={activeTab === tab.key ? 'active' : ''}
+              onClick={() => {
+                setActiveTab(tab.key);
+                if (tab.key !== 'franchise') {
+                  setStoreMarkers([]);
+                  setActiveStore(null);
+                }
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {searchedAddress && (
-            <div style={{
-              fontSize: 12, color: '#5a6a7e', marginBottom: 12,
-              padding: '6px 10px', background: '#f5ecd4',
-              borderRadius: 6, borderLeft: '3px solid #c9a84c',
-            }}>
-              📍 {searchedAddress}
-            </div>
+        <div>
+          {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
+          {activeTab === 'franchise' && (
+            <FranchiseTab
+              data={franchiseData}
+              loading={loading}
+              onStoreClick={handleStoreClick}
+              activeStoreId={activeStore?.id}
+            />
           )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
-            <select value={radius} onChange={handleRadiusChange}>
-              {RADIUS_OPTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r >= 1000 ? `${r / 1000}km` : `${r}m`}
-                </option>
-              ))}
-            </select>
-            {center && center.lat != null && (
-              <span style={{ fontSize: 11, color: '#9aa5b1' }}>
-                {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
-              </span>
-            )}
-            {hasData && (
-              <button
-                onClick={handlePrint}
-                style={{
-                  marginLeft: 'auto',
-                  height: 32, padding: '0 12px',
-                  background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
-                  color: '#0d1b2e', border: 'none', borderRadius: 6,
-                  fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
-                }}
-              >
-                🖨️ 인쇄/PDF
-              </button>
-            )}
-          </div>
-
-          <div className="tabs">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={activeTab === tab.key ? 'active' : ''}
-                onClick={() => {
-                  setActiveTab(tab.key);
-                  if (tab.key !== 'franchise') {
-                    setStoreMarkers([]);
-                    setActiveStoreId(null);
-                  }
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div>
-            {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
-            {activeTab === 'franchise' && (
-              <FranchiseTab
-                data={franchiseData}
-                loading={loading}
-                onStoreClick={handleStoreClick}
-                activeStoreId={activeStoreId}
-              />
-            )}
-            {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
-            {!['population', 'franchise', 'transit'].includes(activeTab) && (
-              <p style={{ color: '#9aa5b1', fontSize: 13, marginTop: 8 }}>
-                [{TABS.find((t) => t.key === activeTab)?.label}] — 다음 단계에서 추가 예정
-              </p>
-            )}
-          </div>
+          {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
+          {!['population', 'franchise', 'transit'].includes(activeTab) && (
+            <p style={{ color: '#9aa5b1', fontSize: 13, marginTop: 8 }}>
+              [{TABS.find((t) => t.key === activeTab)?.label}] — 다음 단계에서 추가 예정
+            </p>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
