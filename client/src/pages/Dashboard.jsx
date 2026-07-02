@@ -4,8 +4,11 @@ import AddressSearch from '../components/AddressSearch';
 import FranchiseTab from '../components/tabs/FranchiseTab';
 import PopulationTab from '../components/tabs/PopulationTab';
 import TransitTab from '../components/tabs/TransitTab';
+import HospitalTab from '../components/tabs/HospitalTab';
+import ChildcareTab from '../components/tabs/ChildcareTab';
+import SchoolTab from '../components/tabs/SchoolTab';
 import { printReport } from '../components/PrintReport';
-import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis } from '../api/analysis';
+import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis, fetchFacilityAnalysis } from '../api/analysis';
 
 const TABS = [
   { key: 'population', label: '생활인구' },
@@ -25,6 +28,7 @@ export default function Dashboard() {
   const [franchiseData, setFranchiseData] = useState(null);
   const [populationData, setPopulationData] = useState(null);
   const [transitData, setTransitData] = useState(null);
+  const [facilityData, setFacilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchedAddress, setSearchedAddress] = useState('');
   const [storeMarkers, setStoreMarkers] = useState([]);
@@ -36,18 +40,21 @@ export default function Dashboard() {
     setFranchiseData(null);
     setPopulationData(null);
     setTransitData(null);
+    setFacilityData(null);
     setStoreMarkers([]);
     setActiveStore(null);
 
-    const [franchise, population, transit] = await Promise.allSettled([
+    const [franchise, population, transit, facility] = await Promise.allSettled([
       fetchFranchiseAnalysis({ lat, lng, radius: r }),
       fetchPopulationAnalysis({ lat, lng }),
       fetchTransitAnalysis({ lat, lng, radius: r }),
+      fetchFacilityAnalysis({ lat, lng, radius: r }),
     ]);
 
     if (franchise.status === 'fulfilled') setFranchiseData(franchise.value);
     if (population.status === 'fulfilled') setPopulationData(population.value);
     if (transit.status === 'fulfilled') setTransitData(transit.value);
+    if (facility.status === 'fulfilled') setFacilityData(facility.value);
 
     setLoading(false);
   }, []);
@@ -75,13 +82,10 @@ export default function Dashboard() {
       return;
     }
     if (storeOrAction.bulk) {
-      setStoreMarkers(storeOrAction.stores.map(s => ({
-        ...s, categoryCode: storeOrAction.categoryCode,
-      })));
+      setStoreMarkers(storeOrAction.stores.map(s => ({ ...s, categoryCode: storeOrAction.categoryCode })));
       setActiveStore(null);
       return;
     }
-    // 단일 매장 클릭 — 지도 이동 + 인포윈도우 열기
     setActiveStore(storeOrAction);
   }, []);
 
@@ -89,7 +93,7 @@ export default function Dashboard() {
     printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData });
   };
 
-  const hasData = populationData || franchiseData || transitData;
+  const hasData = populationData || franchiseData || transitData || facilityData;
 
   return (
     <div className="dashboard">
@@ -176,11 +180,9 @@ export default function Dashboard() {
             />
           )}
           {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
-          {!['population', 'franchise', 'transit'].includes(activeTab) && (
-            <p style={{ color: '#9aa5b1', fontSize: 13, marginTop: 8 }}>
-              [{TABS.find((t) => t.key === activeTab)?.label}] — 다음 단계에서 추가 예정
-            </p>
-          )}
+          {activeTab === 'hospital' && <HospitalTab data={facilityData} loading={loading} />}
+          {activeTab === 'childcare' && <ChildcareTab data={facilityData} loading={loading} />}
+          {activeTab === 'school' && <SchoolTab data={facilityData} loading={loading} />}
         </div>
       </div>
     </div>

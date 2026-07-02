@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { getFranchiseAnalysis } = require('../services/store.service');
 const { getPopulationAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
+const { getFacilityAnalysis } = require('../services/facility.service');
 const { geocode, geocodeSuggest } = require('../services/geocode.service');
 
 // POST /api/analysis/geocode — 주소 → 좌표
@@ -82,6 +83,21 @@ router.post('/transit', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('대중교통 분석 오류:', err.message);
     res.status(500).json({ message: '대중교통 분석 중 오류가 발생했습니다.' });
+  }
+});
+
+// POST /api/analysis/facility
+router.post('/facility', requireAuth, async (req, res) => {
+  const { lat, lng, radius } = req.body;
+  if (!lat || !lng || !radius) {
+    return res.status(400).json({ message: '좌표(lat, lng)와 반경(radius)이 필요합니다.' });
+  }
+  try {
+    const result = await getFacilityAnalysis(lat, lng, radius);
+    res.json(result);
+  } catch (err) {
+    console.error('시설 분석 오류:', err.message);
+    res.status(500).json({ message: '시설 분석 중 오류가 발생했습니다.' });
   }
 });
 

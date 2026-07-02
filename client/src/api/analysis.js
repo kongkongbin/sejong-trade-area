@@ -14,3 +14,8 @@ export async function fetchTransitAnalysis({ lat, lng, radius }) {
   const res = await api.post('/analysis/transit', { lat, lng, radius });
   return res.data;
 }
+
+export async function fetchFacilityAnalysis({ lat, lng, radius }) {
+  const res = await api.post('/analysis/facility', { lat, lng, radius });
+  return res.data;
+}
