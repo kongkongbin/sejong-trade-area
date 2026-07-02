@@ -70,13 +70,20 @@ export default function Dashboard() {
 
     setLoading(false);
 
-    // 점수 계산 (4개 분석 끝난 후)
+    // 점수 계산 (4개 분석 끝난 후) - 무거운 매장 리스트 제외하고 전송
     if (fd || pd || td || fcd) {
       try {
+        const lightFd = fd ? {
+          totalCount: fd.totalCount,
+          byCategory: fd.byCategory?.map(({ code, name, count, competitionLevel }) => ({
+            code, name, count, competitionLevel
+          })),
+        } : null;
+
         const score = await fetchScore({
           populationData: pd,
           transitData: td,
-          franchiseData: fd,
+          franchiseData: lightFd,
           facilityData: fcd,
         });
         setScoreData(score);
