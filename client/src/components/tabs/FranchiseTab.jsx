@@ -6,24 +6,37 @@ function CompetitionBar({ level }) {
       {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} style={{
           width: 14, height: 14, borderRadius: 2,
-          background: i <= level ? '#1a2233' : '#e0e2e6',
+          background: i <= level ? '#0d1b2e' : '#e0e2e6',
         }} />
       ))}
     </div>
   );
 }
 
-function StoreList({ stores }) {
+function StoreList({ stores, categoryCode, onStoreClick, activeStoreId }) {
   if (!stores || stores.length === 0) return null;
   return (
-    <div style={{ background: '#f8f9fb', borderRadius: 6, marginTop: 6, maxHeight: 240, overflowY: 'auto' }}>
+    <div style={{ background: '#f8f9fb', borderRadius: 6, marginTop: 6, maxHeight: 260, overflowY: 'auto' }}>
       {stores.map((store) => (
-        <div key={store.id} style={{
-          padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: 13,
-        }}>
+        <div
+          key={store.id}
+          onClick={() => onStoreClick({ ...store, categoryCode })}
+          style={{
+            padding: '8px 12px',
+            borderBottom: '1px solid #eee',
+            fontSize: 13,
+            cursor: 'pointer',
+            background: activeStoreId === store.id ? '#f5ecd4' : 'transparent',
+            borderLeft: activeStoreId === store.id ? '3px solid #c9a84c' : '3px solid transparent',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { if (activeStoreId !== store.id) e.currentTarget.style.background = '#f0f2f5'; }}
+          onMouseLeave={(e) => { if (activeStoreId !== store.id) e.currentTarget.style.background = 'transparent'; }}
+        >
           <div style={{ fontWeight: 500 }}>
             {store.name}{store.branch ? ` ${store.branch}` : ''}
             {store.floor ? <span style={{ color: '#aaa', fontWeight: 400 }}> {store.floor}층</span> : ''}
+            <span style={{ fontSize: 11, color: '#c9a84c', marginLeft: 6 }}>📍</span>
           </div>
           <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
             {store.category && <span style={{ marginRight: 8, color: '#5a7fa0' }}>{store.category}</span>}
@@ -35,7 +48,7 @@ function StoreList({ stores }) {
   );
 }
 
-export default function FranchiseTab({ data, loading }) {
+export default function FranchiseTab({ data, loading, onStoreClick, activeStoreId }) {
   const [openCategory, setOpenCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -62,7 +75,6 @@ export default function FranchiseTab({ data, loading }) {
 
   return (
     <div>
-      {/* 상단 요약 + 검색 토글 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
           총 <strong>{data.totalCount.toLocaleString()}개</strong> 상가업소
@@ -71,7 +83,7 @@ export default function FranchiseTab({ data, loading }) {
           onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); }}
           style={{
             fontSize: 12, padding: '4px 10px', border: '1px solid #d8dbe0',
-            borderRadius: 14, background: showSearch ? '#1a2233' : '#fff',
+            borderRadius: 14, background: showSearch ? '#0d1b2e' : '#fff',
             color: showSearch ? '#fff' : '#444', cursor: 'pointer',
           }}
         >
@@ -79,7 +91,6 @@ export default function FranchiseTab({ data, loading }) {
         </button>
       </div>
 
-      {/* 검색창 */}
       {showSearch && (
         <div style={{ marginBottom: 12 }}>
           <input
@@ -90,23 +101,25 @@ export default function FranchiseTab({ data, loading }) {
             style={{
               width: '100%', padding: '8px 12px', fontSize: 13,
               border: '1px solid #d8dbe0', borderRadius: 6, boxSizing: 'border-box',
+              fontFamily: 'inherit',
             }}
             autoFocus
           />
           {searchQuery && (
             <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
-              {searchResults.length > 0
-                ? `검색 결과 ${searchResults.length}개`
-                : '검색 결과가 없습니다.'}
+              {searchResults.length > 0 ? `검색 결과 ${searchResults.length}개` : '검색 결과가 없습니다.'}
             </div>
           )}
           {searchQuery && searchResults.length > 0 && (
-            <StoreList stores={searchResults} />
+            <StoreList
+              stores={searchResults}
+              onStoreClick={onStoreClick}
+              activeStoreId={activeStoreId}
+            />
           )}
         </div>
       )}
 
-      {/* 업종별 테이블 */}
       {!showSearch && (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
@@ -121,7 +134,16 @@ export default function FranchiseTab({ data, loading }) {
               <React.Fragment key={cat.code}>
                 <tr
                   style={{ borderBottom: '1px solid #f0f1f3', cursor: 'pointer' }}
-                  onClick={() => setOpenCategory(openCategory === cat.code ? null : cat.code)}
+                  onClick={() => {
+                    const isOpening = openCategory !== cat.code;
+                    setOpenCategory(isOpening ? cat.code : null);
+                    // 업종 닫으면 마커 초기화
+                    if (!isOpening) onStoreClick(null);
+                    // 업종 열면 해당 업종 전체 마커 표시
+                    else if (cat.stores) {
+                      onStoreClick({ bulk: true, stores: cat.stores, categoryCode: cat.code });
+                    }
+                  }}
                 >
                   <td style={{ padding: '10px 0', fontWeight: 500 }}>
                     <span style={{ marginRight: 6, fontSize: 11, color: '#aaa' }}>
@@ -132,14 +154,19 @@ export default function FranchiseTab({ data, loading }) {
                   <td style={{ padding: '10px 0' }}>
                     <CompetitionBar level={cat.competitionLevel} />
                   </td>
-                  <td style={{ padding: '10px 0', textAlign: 'right', color: '#1a2233', fontWeight: 600 }}>
+                  <td style={{ padding: '10px 0', textAlign: 'right', color: '#0d1b2e', fontWeight: 600 }}>
                     {cat.count.toLocaleString()}
                   </td>
                 </tr>
                 {openCategory === cat.code && (
                   <tr>
                     <td colSpan={3} style={{ paddingBottom: 10 }}>
-                      <StoreList stores={cat.stores} />
+                      <StoreList
+                        stores={cat.stores}
+                        categoryCode={cat.code}
+                        onStoreClick={onStoreClick}
+                        activeStoreId={activeStoreId}
+                      />
                     </td>
                   </tr>
                 )}

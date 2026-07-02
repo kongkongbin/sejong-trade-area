@@ -1,156 +1,180 @@
-import React, { useState, useCallback, useRef } from 'react';
-import NaverMap from '../components/NaverMap';
-import AddressSearch from '../components/AddressSearch';
-import FranchiseTab from '../components/tabs/FranchiseTab';
-import PopulationTab from '../components/tabs/PopulationTab';
-import TransitTab from '../components/tabs/TransitTab';
-import { printReport } from '../components/PrintReport';
-import { fetchFranchiseAnalysis, fetchPopulationAnalysis, fetchTransitAnalysis } from '../api/analysis';
+import React, { useState, useMemo } from 'react';
 
-const TABS = [
-  { key: 'population', label: '생활인구' },
-  { key: 'franchise', label: '프랜차이즈' },
-  { key: 'transit', label: '대중교통' },
-  { key: 'hospital', label: '종합병원' },
-  { key: 'childcare', label: '보육시설' },
-  { key: 'school', label: '학교' },
-];
+function CompetitionBar({ level }) {
+  return (
+    <div style={{ display: 'flex', gap: 3 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} style={{
+          width: 14, height: 14, borderRadius: 2,
+          background: i <= level ? '#0d1b2e' : '#e0e2e6',
+        }} />
+      ))}
+    </div>
+  );
+}
 
-const RADIUS_OPTIONS = [100, 300, 500, 1000, 1500, 2000, 3000];
+function StoreList({ stores, categoryCode, onStoreClick, activeStoreId }) {
+  if (!stores || stores.length === 0) return null;
+  return (
+    <div style={{ background: '#f8f9fb', borderRadius: 6, marginTop: 6, maxHeight: 260, overflowY: 'auto' }}>
+      {stores.map((store) => (
+        <div
+          key={store.id}
+          onClick={() => onStoreClick({ ...store, categoryCode })}
+          style={{
+            padding: '8px 12px',
+            borderBottom: '1px solid #eee',
+            fontSize: 13,
+            cursor: 'pointer',
+            background: activeStoreId === store.id ? '#f5ecd4' : 'transparent',
+            borderLeft: activeStoreId === store.id ? '3px solid #c9a84c' : '3px solid transparent',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { if (activeStoreId !== store.id) e.currentTarget.style.background = '#f0f2f5'; }}
+          onMouseLeave={(e) => { if (activeStoreId !== store.id) e.currentTarget.style.background = 'transparent'; }}
+        >
+          <div style={{ fontWeight: 500 }}>
+            {store.name}{store.branch ? ` ${store.branch}` : ''}
+            {store.floor ? <span style={{ color: '#aaa', fontWeight: 400 }}> {store.floor}층</span> : ''}
+            <span style={{ fontSize: 11, color: '#c9a84c', marginLeft: 6 }}>📍</span>
+          </div>
+          <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+            {store.category && <span style={{ marginRight: 8, color: '#5a7fa0' }}>{store.category}</span>}
+            {store.address}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('population');
-  const [radius, setRadius] = useState(500);
-  const [center, setCenter] = useState(null);
-  const [franchiseData, setFranchiseData] = useState(null);
-  const [populationData, setPopulationData] = useState(null);
-  const [transitData, setTransitData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [searchedAddress, setSearchedAddress] = useState('');
+export default function FranchiseTab({ data, loading, onStoreClick, activeStoreId }) {
+  const [openCategory, setOpenCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
-  const runAnalysis = useCallback(async ({ lat, lng }, r) => {
-    setCenter({ lat, lng });
-    setLoading(true);
-    setFranchiseData(null);
-    setPopulationData(null);
-    setTransitData(null);
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || !data?.allStores) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return data.allStores.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.branch.toLowerCase().includes(q)
+    );
+  }, [searchQuery, data]);
 
-    const [franchise, population, transit] = await Promise.allSettled([
-      fetchFranchiseAnalysis({ lat, lng, radius: r }),
-      fetchPopulationAnalysis({ lat, lng }),
-      fetchTransitAnalysis({ lat, lng, radius: r }),
-    ]);
+  if (loading) {
+    return <p style={{ color: '#888', padding: '16px 0', fontSize: 13 }}>분석 중...</p>;
+  }
 
-    if (franchise.status === 'fulfilled') setFranchiseData(franchise.value);
-    if (population.status === 'fulfilled') setPopulationData(population.value);
-    if (transit.status === 'fulfilled') setTransitData(transit.value);
+  if (!data && !loading) {
+    return <p style={{ color: '#aaa', padding: '16px 0', fontSize: 13 }}>지도를 클릭해서 위치를 선택하세요.</p>;
+  }
 
-    setLoading(false);
-  }, []);
-
-  const handleMapClick = useCallback(({ lat, lng }) => {
-    setSearchedAddress('');
-    runAnalysis({ lat, lng }, radius);
-  }, [radius, runAnalysis]);
-
-  const handleRadiusChange = (e) => {
-    const newRadius = Number(e.target.value);
-    setRadius(newRadius);
-    if (center) runAnalysis(center, newRadius);
-  };
-
-  const handleSearchResult = ({ lat, lng, roadAddress, jibunAddress }) => {
-    setSearchedAddress(roadAddress || jibunAddress || '');
-    runAnalysis({ lat, lng }, radius);
-  };
-
-  const handlePrint = () => {
-    printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData });
-  };
-
-  const hasData = populationData || franchiseData || transitData;
+  if (!data || data.totalCount === 0) {
+    return <p style={{ color: '#aaa', padding: '16px 0', fontSize: 13 }}>해당 위치 반경 내 상가업소 데이터가 없습니다.</p>;
+  }
 
   return (
-    <>
-      <div className="dashboard">
-        <div className="map-panel">
-          <NaverMap center={center} radius={radius} onMapClick={handleMapClick} />
-        </div>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
+          총 <strong>{data.totalCount.toLocaleString()}개</strong> 상가업소
+        </p>
+        <button
+          onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); }}
+          style={{
+            fontSize: 12, padding: '4px 10px', border: '1px solid #d8dbe0',
+            borderRadius: 14, background: showSearch ? '#0d1b2e' : '#fff',
+            color: showSearch ? '#fff' : '#444', cursor: 'pointer',
+          }}
+        >
+          🔍 상호 검색
+        </button>
+      </div>
 
-        <div className="data-panel">
-          {/* 주소 검색 */}
-          <AddressSearch onResult={handleSearchResult} />
-
-          {/* 검색된 주소 표시 */}
-          {searchedAddress && (
-            <div style={{
-              fontSize: 12, color: '#5a6a7e', marginBottom: 12,
-              padding: '6px 10px', background: '#f5ecd4',
-              borderRadius: 6, borderLeft: '3px solid #c9a84c',
-            }}>
-              📍 {searchedAddress}
+      {showSearch && (
+        <div style={{ marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="상호명으로 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', padding: '8px 12px', fontSize: 13,
+              border: '1px solid #d8dbe0', borderRadius: 6, boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+            autoFocus
+          />
+          {searchQuery && (
+            <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>
+              {searchResults.length > 0 ? `검색 결과 ${searchResults.length}개` : '검색 결과가 없습니다.'}
             </div>
           )}
-
-          {/* 반경 + 프린트 버튼 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
-            <select value={radius} onChange={handleRadiusChange}>
-              {RADIUS_OPTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r >= 1000 ? `${r / 1000}km` : `${r}m`}
-                </option>
-              ))}
-            </select>
-            {center && center.lat != null && (
-              <span style={{ fontSize: 11, color: '#9aa5b1' }}>
-                {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
-              </span>
-            )}
-            {hasData && (
-              <button
-                onClick={handlePrint}
-                style={{
-                  marginLeft: 'auto',
-                  height: 32, padding: '0 12px',
-                  background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
-                  color: '#0d1b2e', border: 'none', borderRadius: 6,
-                  fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
-                }}
-              >
-                🖨️ 인쇄/PDF
-              </button>
-            )}
-          </div>
-
-          {/* 탭 */}
-          <div className="tabs">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={activeTab === tab.key ? 'active' : ''}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* 탭 콘텐츠 */}
-          <div>
-            {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
-            {activeTab === 'franchise' && <FranchiseTab data={franchiseData} loading={loading} />}
-            {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
-            {!['population', 'franchise', 'transit'].includes(activeTab) && (
-              <p style={{ color: '#9aa5b1', fontSize: 13, marginTop: 8 }}>
-                [{TABS.find((t) => t.key === activeTab)?.label}] — 다음 단계에서 추가 예정
-              </p>
-            )}
-          </div>
+          {searchQuery && searchResults.length > 0 && (
+            <StoreList
+              stores={searchResults}
+              onStoreClick={onStoreClick}
+              activeStoreId={activeStoreId}
+            />
+          )}
         </div>
-      </div>
-    </>
+      )}
+
+      {!showSearch && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #e0e2e6' }}>
+              <th style={{ textAlign: 'left', padding: '6px 0', color: '#888', fontWeight: 400 }}>업종</th>
+              <th style={{ textAlign: 'left', padding: '6px 0', color: '#888', fontWeight: 400 }}>경쟁 강도</th>
+              <th style={{ textAlign: 'right', padding: '6px 0', color: '#888', fontWeight: 400 }}>매장 수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.byCategory.map((cat) => (
+              <React.Fragment key={cat.code}>
+                <tr
+                  style={{ borderBottom: '1px solid #f0f1f3', cursor: 'pointer' }}
+                  onClick={() => {
+                    const isOpening = openCategory !== cat.code;
+                    setOpenCategory(isOpening ? cat.code : null);
+                    // 업종 닫으면 마커 초기화
+                    if (!isOpening) onStoreClick(null);
+                    // 업종 열면 해당 업종 전체 마커 표시
+                    else if (cat.stores) {
+                      onStoreClick({ bulk: true, stores: cat.stores, categoryCode: cat.code });
+                    }
+                  }}
+                >
+                  <td style={{ padding: '10px 0', fontWeight: 500 }}>
+                    <span style={{ marginRight: 6, fontSize: 11, color: '#aaa' }}>
+                      {openCategory === cat.code ? '▲' : '▼'}
+                    </span>
+                    {cat.name}
+                  </td>
+                  <td style={{ padding: '10px 0' }}>
+                    <CompetitionBar level={cat.competitionLevel} />
+                  </td>
+                  <td style={{ padding: '10px 0', textAlign: 'right', color: '#0d1b2e', fontWeight: 600 }}>
+                    {cat.count.toLocaleString()}
+                  </td>
+                </tr>
+                {openCategory === cat.code && (
+                  <tr>
+                    <td colSpan={3} style={{ paddingBottom: 10 }}>
+                      <StoreList
+                        stores={cat.stores}
+                        categoryCode={cat.code}
+                        onStoreClick={onStoreClick}
+                        activeStoreId={activeStoreId}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
