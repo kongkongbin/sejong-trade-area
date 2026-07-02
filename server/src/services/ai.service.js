@@ -1,6 +1,91 @@
 const axios = require('axios');
 require('dotenv').config();
 
+// AI 응답 텍스트를 구조화된 데이터로 파싱
+function parseAIResponse(text) {
+  const result = {
+    summary: '',
+    strengths: [],
+    risks: [],
+    financial: '',
+    checklist: [],
+    verdict: 'CONDITIONAL_GO',
+    verdictReason: '',
+  };
+
+  // 섹션별로 분리
+  const sections = text.split(/##\s+\d+\./);
+
+  sections.forEach((section) => {
+    const trimmed = section.trim();
+
+    if (trimmed.startsWith('입지 핵심 요약') || trimmed.startsWith('1. 입지')) {
+      result.summary = trimmed.replace(/^입지 핵심 요약.*?\n/, '').replace(/^1\. 입지.*?\n/, '').trim();
+    }
+    else if (trimmed.startsWith('강점') || trimmed.startsWith('2. 강점')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
+      result.strengths = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+    }
+    else if (trimmed.startsWith('리스크') || trimmed.startsWith('3. 리스크')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
+      result.risks = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+    }
+    else if (trimmed.startsWith('재무 분석') || trimmed.startsWith('4. 재무')) {
+      result.financial = trimmed.replace(/^재무 분석.*?\n/, '').replace(/^4\. 재무.*?\n/, '').trim();
+    }
+    else if (trimmed.startsWith('계약 전') || trimmed.startsWith('5. 계약')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('- ['));
+      result.checklist = lines.map(l => ({
+        text: l.replace(/^-\s*\[[ x]\]\s*/, '').trim(),
+        checked: l.includes('[x]') || l.includes('[X]'),
+      })).filter(item => item.text);
+    }
+    else if (trimmed.startsWith('세종의 최종') || trimmed.startsWith('6. 세종')) {
+      if (trimmed.includes('NO-GO') || trimmed.includes('NO GO')) result.verdict = 'NO_GO';
+      else if (trimmed.match(/GO(?!.*NO)/) && !trimmed.includes('조건부')) result.verdict = 'GO';
+      else result.verdict = 'CONDITIONAL_GO';
+
+      // 판정 이유 추출
+      const lines = trimmed.split('\n').filter(l => l.trim() && !l.includes('GO') && !l.includes('NO-GO'));
+      result.verdictReason = lines.slice(1).join(' ').trim();
+    }
+  });
+
+  // 파싱 실패시 전체 텍스트에서 강점/리스크 추출 시도
+  if (result.strengths.length === 0) {
+    const strengthMatch = text.match(/강점[^\n]*\n([\s\S]*?)(?=##|리스크|$)/);
+    if (strengthMatch) {
+      result.strengths = strengthMatch[1].split('\n')
+        .filter(l => l.trim().match(/^[-•*]\s/))
+        .map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim())
+        .filter(Boolean);
+    }
+  }
+  if (result.risks.length === 0) {
+    const riskMatch = text.match(/리스크[^\n]*\n([\s\S]*?)(?=##|재무|$)/);
+    if (riskMatch) {
+      result.risks = riskMatch[1].split('\n')
+        .filter(l => l.trim().match(/^[-•*]\s/))
+        .map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim())
+        .filter(Boolean);
+    }
+  }
+  if (result.checklist.length === 0) {
+    const checkMatch = text.match(/체크리스트[^\n]*\n([\s\S]*?)(?=##|세종|$)/);
+    if (checkMatch) {
+      result.checklist = checkMatch[1].split('\n')
+        .filter(l => l.trim().startsWith('- ['))
+        .map(l => ({
+          text: l.replace(/^-\s*\[[ x]\]\s*/i, '').trim(),
+          checked: false,
+        }))
+        .filter(item => item.text);
+    }
+  }
+
+  return result;
+}
+
 async function generateAIOpinion({ locationData, analysisData }) {
   const {
     address, target_business, premium, deposit, monthly_rent,
@@ -62,24 +147,31 @@ async function generateAIOpinion({ locationData, analysisData }) {
 - 임대인 특이사항: ${landlord_note || '없음'}
 - 현장 메모: ${field_memo || '없음'}
 
-위 데이터를 바탕으로 다음 형식으로 분석해주세요:
+반드시 아래 형식을 정확히 지켜서 작성해주세요 (파싱에 사용됩니다):
 
-**1. 입지 핵심 요약** (3줄 이내)
+## 1. 입지 핵심 요약
+(3줄 이내 핵심 요약)
 
-**2. 강점**
-- (3~5가지)
+## 2. 강점
+- 강점 1
+- 강점 2
+- 강점 3
 
-**3. 리스크**
-- (3~5가지)
+## 3. 리스크
+- 리스크 1
+- 리스크 2
+- 리스크 3
 
-**4. 재무 분석**
-투자금 회수 기간, 손익분기점, 적정 임대료 협상 제안
+## 4. 재무 분석
+(투자금 회수 기간, 손익분기점, 적정 임대료 협상 제안)
 
-**5. 계약 전 확인 체크리스트**
-- [ ] 항목들
+## 5. 계약 전 확인 체크리스트
+- [ ] 항목 1
+- [ ] 항목 2
+- [ ] 항목 3
 
-**6. 세종의 최종 의견: GO / 조건부 GO / NO-GO**
-판정 이유 2~3문장`;
+## 6. 세종의 최종 의견: GO / 조건부 GO / NO-GO
+(판정 이유 2~3문장)`;
 
   const response = await axios.post(
     'https://api.anthropic.com/v1/messages',
@@ -99,12 +191,12 @@ async function generateAIOpinion({ locationData, analysisData }) {
   );
 
   const text = response.data.content[0].text;
+  const parsed = parseAIResponse(text);
 
-  let verdict = 'CONDITIONAL_GO';
-  if (text.includes('NO-GO') || text.includes('NO GO')) verdict = 'NO_GO';
-  else if (text.match(/최종 의견.*: GO/) && !text.includes('NO-GO')) verdict = 'GO';
-
-  return { opinion: text, verdict };
+  return {
+    opinion: text, // 원본 텍스트 (하위 호환)
+    ...parsed,
+  };
 }
 
 module.exports = { generateAIOpinion };

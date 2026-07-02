@@ -1,162 +1,202 @@
-const express = require('express');
-const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
-const pool = require('../config/db');
-const { generateAIOpinion } = require('../services/ai.service');
+const axios = require('axios');
+require('dotenv').config();
 
-// GET /api/locations — 전체 목록
-router.get('/', requireAuth, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT id, address, lat, lng, target_business, ai_verdict, created_at
-       FROM location_data
-       ORDER BY created_at DESC`
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ message: '목록 조회 실패' });
+// AI 응답 텍스트를 구조화된 데이터로 파싱
+function parseAIResponse(text) {
+  const result = {
+    summary: '',
+    strengths: [],
+    risks: [],
+    financial: '',
+    checklist: [],
+    verdict: 'CONDITIONAL_GO',
+    verdictReason: '',
+  };
+
+  // 섹션별로 분리
+  const sections = text.split(/##\s+\d+\./);
+
+  sections.forEach((section) => {
+    const trimmed = section.trim();
+
+    if (trimmed.startsWith('입지 핵심 요약') || trimmed.startsWith('1. 입지')) {
+      result.summary = trimmed.replace(/^입지 핵심 요약.*?\n/, '').replace(/^1\. 입지.*?\n/, '').trim();
+    }
+    else if (trimmed.startsWith('강점') || trimmed.startsWith('2. 강점')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
+      result.strengths = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+    }
+    else if (trimmed.startsWith('리스크') || trimmed.startsWith('3. 리스크')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•') || l.trim().match(/^[-•*]\s/));
+      result.risks = lines.map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim()).filter(Boolean);
+    }
+    else if (trimmed.startsWith('재무 분석') || trimmed.startsWith('4. 재무')) {
+      result.financial = trimmed.replace(/^재무 분석.*?\n/, '').replace(/^4\. 재무.*?\n/, '').trim();
+    }
+    else if (trimmed.startsWith('계약 전') || trimmed.startsWith('5. 계약')) {
+      const lines = trimmed.split('\n').filter(l => l.trim().startsWith('- ['));
+      result.checklist = lines.map(l => ({
+        text: l.replace(/^-\s*\[[ x]\]\s*/, '').trim(),
+        checked: l.includes('[x]') || l.includes('[X]'),
+      })).filter(item => item.text);
+    }
+    else if (trimmed.startsWith('세종의 최종') || trimmed.startsWith('6. 세종')) {
+      if (trimmed.includes('NO-GO') || trimmed.includes('NO GO')) result.verdict = 'NO_GO';
+      else if (trimmed.match(/GO(?!.*NO)/) && !trimmed.includes('조건부')) result.verdict = 'GO';
+      else result.verdict = 'CONDITIONAL_GO';
+
+      // 판정 이유 추출
+      const lines = trimmed.split('\n').filter(l => l.trim() && !l.includes('GO') && !l.includes('NO-GO'));
+      result.verdictReason = lines.slice(1).join(' ').trim();
+    }
+  });
+
+  // 파싱 실패시 전체 텍스트에서 강점/리스크 추출 시도
+  if (result.strengths.length === 0) {
+    const strengthMatch = text.match(/강점[^\n]*\n([\s\S]*?)(?=##|리스크|$)/);
+    if (strengthMatch) {
+      result.strengths = strengthMatch[1].split('\n')
+        .filter(l => l.trim().match(/^[-•*]\s/))
+        .map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim())
+        .filter(Boolean);
+    }
   }
-});
-
-// GET /api/locations/:id — 단일 조회
-router.get('/:id', requireAuth, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      'SELECT * FROM location_data WHERE id = ?',
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ message: '데이터를 찾을 수 없습니다.' });
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ message: '조회 실패' });
+  if (result.risks.length === 0) {
+    const riskMatch = text.match(/리스크[^\n]*\n([\s\S]*?)(?=##|재무|$)/);
+    if (riskMatch) {
+      result.risks = riskMatch[1].split('\n')
+        .filter(l => l.trim().match(/^[-•*]\s/))
+        .map(l => l.replace(/^[-•*]\s+/, '').replace(/\*\*/g, '').trim())
+        .filter(Boolean);
+    }
   }
-});
-
-// POST /api/locations — 저장
-router.post('/', requireAuth, async (req, res) => {
-  const data = req.body;
-  try {
-    const [result] = await pool.query(
-      `INSERT INTO location_data (
-        address, lat, lng, analysis_radius,
-        premium, deposit, monthly_rent, interior_budget, other_initial_cost,
-        target_business, avg_price_per_customer, expected_daily_sales, business_hours,
-        visibility_score, accessibility_score, parking_available,
-        building_age, has_elevator, is_corner, floor_info,
-        nearby_vacancy_rate, redevelopment_plan, redevelopment_note,
-        landlord_note, field_memo,
-        contract_period, landlord_asking_rent, desired_rent,
-        created_by
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        data.address, data.lat, data.lng, data.analysis_radius || 500,
-        data.premium || 0, data.deposit || 0, data.monthly_rent || 0,
-        data.interior_budget || 0, data.other_initial_cost || 0,
-        data.target_business || '', data.avg_price_per_customer || 0,
-        data.expected_daily_sales || 0, data.business_hours || '',
-        data.visibility_score || 3, data.accessibility_score || 3,
-        data.parking_available ? 1 : 0,
-        data.building_age || null, data.has_elevator ? 1 : 0,
-        data.is_corner ? 1 : 0, data.floor_info || '',
-        data.nearby_vacancy_rate || 0, data.redevelopment_plan ? 1 : 0,
-        data.redevelopment_note || '', data.landlord_note || '',
-        data.field_memo || '',
-        data.contract_period || '', data.landlord_asking_rent || 0,
-        data.desired_rent || 0,
-        req.user.id,
-      ]
-    );
-    res.status(201).json({ id: result.insertId, message: '저장되었습니다.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: '저장 실패' });
+  if (result.checklist.length === 0) {
+    const checkMatch = text.match(/체크리스트[^\n]*\n([\s\S]*?)(?=##|세종|$)/);
+    if (checkMatch) {
+      result.checklist = checkMatch[1].split('\n')
+        .filter(l => l.trim().startsWith('- ['))
+        .map(l => ({
+          text: l.replace(/^-\s*\[[ x]\]\s*/i, '').trim(),
+          checked: false,
+        }))
+        .filter(item => item.text);
+    }
   }
-});
 
-// PUT /api/locations/:id — 수정
-router.put('/:id', requireAuth, async (req, res) => {
-  const data = req.body;
-  try {
-    await pool.query(
-      `UPDATE location_data SET
-        address=?, lat=?, lng=?, analysis_radius=?,
-        premium=?, deposit=?, monthly_rent=?, interior_budget=?, other_initial_cost=?,
-        target_business=?, avg_price_per_customer=?, expected_daily_sales=?, business_hours=?,
-        visibility_score=?, accessibility_score=?, parking_available=?,
-        building_age=?, has_elevator=?, is_corner=?, floor_info=?,
-        nearby_vacancy_rate=?, redevelopment_plan=?, redevelopment_note=?,
-        landlord_note=?, field_memo=?,
-        contract_period=?, landlord_asking_rent=?, desired_rent=?
-       WHERE id=?`,
-      [
-        data.address, data.lat, data.lng, data.analysis_radius || 500,
-        data.premium || 0, data.deposit || 0, data.monthly_rent || 0,
-        data.interior_budget || 0, data.other_initial_cost || 0,
-        data.target_business || '', data.avg_price_per_customer || 0,
-        data.expected_daily_sales || 0, data.business_hours || '',
-        data.visibility_score || 3, data.accessibility_score || 3,
-        data.parking_available ? 1 : 0,
-        data.building_age || null, data.has_elevator ? 1 : 0,
-        data.is_corner ? 1 : 0, data.floor_info || '',
-        data.nearby_vacancy_rate || 0, data.redevelopment_plan ? 1 : 0,
-        data.redevelopment_note || '', data.landlord_note || '',
-        data.field_memo || '',
-        data.contract_period || '', data.landlord_asking_rent || 0,
-        data.desired_rent || 0,
-        req.params.id,
-      ]
-    );
-    res.json({ message: '수정되었습니다.' });
-  } catch (err) {
-    res.status(500).json({ message: '수정 실패' });
-  }
-});
+  return result;
+}
 
-// DELETE /api/locations/:id — 삭제
-router.delete('/:id', requireAuth, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM location_data WHERE id = ?', [req.params.id]);
-    res.json({ message: '삭제되었습니다.' });
-  } catch (err) {
-    res.status(500).json({ message: '삭제 실패' });
-  }
-});
+async function generateAIOpinion({ locationData, analysisData }) {
+  const {
+    address, target_business, premium, deposit, monthly_rent,
+    interior_budget, other_initial_cost, avg_price_per_customer,
+    expected_daily_sales, business_hours, visibility_score,
+    accessibility_score, parking_available, building_age,
+    has_elevator, is_corner, floor_info, nearby_vacancy_rate,
+    redevelopment_plan, redevelopment_note, landlord_note,
+    field_memo, contract_period, landlord_asking_rent, desired_rent,
+  } = locationData;
 
-// POST /api/locations/:id/generate-ai — AI 의견 생성
-router.post('/:id/generate-ai', requireAuth, async (req, res) => {
-  const { analysisData } = req.body;
-  try {
-    const [rows] = await pool.query('SELECT * FROM location_data WHERE id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ message: '데이터를 찾을 수 없습니다.' });
+  const { populationData, transitData, franchiseData, facilityData, scoreData } = analysisData;
 
-    const locationData = rows[0];
-    const { opinion, verdict } = await generateAIOpinion({ locationData, analysisData });
+  const totalInitial = (Number(premium)||0) + (Number(deposit)||0) +
+    (Number(interior_budget)||0) + (Number(other_initial_cost)||0);
+  const monthlyRevenue = (Number(expected_daily_sales)||0) * 25;
+  const monthlyFixed = Number(monthly_rent) || 0;
+  const monthlyProfit = monthlyRevenue - monthlyFixed;
+  const paybackMonths = monthlyProfit > 0 ? Math.ceil(totalInitial / monthlyProfit) : null;
 
-    // DB에 저장
-    await pool.query(
-      `UPDATE location_data SET ai_opinion=?, ai_verdict=?, ai_generated_at=NOW() WHERE id=?`,
-      [opinion, verdict, req.params.id]
-    );
+  const prompt = `당신은 대구광역시 상권/입지 분석 전문가입니다. 세종홀딩스의 부동산 중개 전문가로서 다음 데이터를 바탕으로 종합적인 입지 분석 의견을 작성해주세요.
 
-    res.json({ opinion, verdict });
-  } catch (err) {
-    console.error('AI 생성 오류:', err.message);
-    res.status(500).json({ message: 'AI 의견 생성 중 오류가 발생했습니다.' });
-  }
-});
+## 분석 대상 위치
+- 주소: ${address}
+- 입점 예정 업종: ${target_business || '미입력'}
+- 층수: ${floor_info || '미입력'}
+- 코너 위치: ${is_corner ? '예' : '아니오'}
 
-// PUT /api/locations/:id/ai — AI 의견 저장
-router.put('/:id/ai', requireAuth, async (req, res) => {
-  const { ai_opinion, ai_verdict } = req.body;
-  try {
-    await pool.query(
-      `UPDATE location_data SET ai_opinion=?, ai_verdict=?, ai_generated_at=NOW() WHERE id=?`,
-      [ai_opinion, ai_verdict, req.params.id]
-    );
-    res.json({ message: 'AI 의견이 저장되었습니다.' });
-  } catch (err) {
-    res.status(500).json({ message: 'AI 의견 저장 실패' });
-  }
-});
+## 재무 현황
+- 권리금: ${premium ? `${Number(premium).toLocaleString()}만원` : '미입력'}
+- 보증금: ${deposit ? `${Number(deposit).toLocaleString()}만원` : '미입력'}
+- 월세: ${monthly_rent ? `${Number(monthly_rent).toLocaleString()}만원` : '미입력'}
+- 인테리어 예산: ${interior_budget ? `${Number(interior_budget).toLocaleString()}만원` : '미입력'}
+- 총 초기투자금: ${totalInitial.toLocaleString()}만원
+- 예상 일매출: ${expected_daily_sales ? `${Number(expected_daily_sales).toLocaleString()}만원` : '미입력'}
+- 예상 월매출: ${monthlyRevenue.toLocaleString()}만원
+- 투자금 회수 예상: ${paybackMonths ? `약 ${paybackMonths}개월` : '계산 불가'}
+- 임대인 제시 임대료: ${landlord_asking_rent ? `${Number(landlord_asking_rent).toLocaleString()}만원` : '미입력'}
+- 희망 임대료: ${desired_rent ? `${Number(desired_rent).toLocaleString()}만원` : '미입력'}
 
-module.exports = router;
+## 상권 분석 데이터 (반경 ${analysisData.radius || 500}m)
+- 종합 상권 점수: ${scoreData?.totalScore || '-'}점 / 100점 (${scoreData?.grade?.grade || '-'} 등급)
+- 거주인구: ${populationData?.total?.toLocaleString() || '-'}명 (${populationData?.maxAge || '-'} 최다)
+- 대구 평균 대비: ${scoreData?.breakdown?.population?.compareText || '-'}
+- 지하철역: ${transitData?.subway?.count || 0}개
+- 버스 정류장: ${transitData?.bus?.count || 0}개
+- 총 상가업소: ${franchiseData?.totalCount?.toLocaleString() || '-'}개
+- 주요 업종: ${franchiseData?.byCategory?.slice(0,3).map(c => `${c.name}(${c.count}개)`).join(', ') || '-'}
+- 의료기관: ${facilityData?.hospital?.count || 0}개
+- 학교: ${(facilityData?.elementary?.count||0)+(facilityData?.middle?.count||0)+(facilityData?.high?.count||0)}개
+
+## 현장 조사
+- 가시성: ${visibility_score}/5점
+- 접근성: ${accessibility_score}/5점
+- 주차: ${parking_available ? '가능' : '불가'}
+- 건물 연식: ${building_age ? `${building_age}년` : '미입력'}
+- 주변 공실/폐업 비율 체감: ${nearby_vacancy_rate || 0}%
+- 재개발 계획: ${redevelopment_plan ? `있음 (${redevelopment_note || ''})` : '없음'}
+- 임대인 특이사항: ${landlord_note || '없음'}
+- 현장 메모: ${field_memo || '없음'}
+
+반드시 아래 형식을 정확히 지켜서 작성해주세요 (파싱에 사용됩니다):
+
+## 1. 입지 핵심 요약
+(3줄 이내 핵심 요약)
+
+## 2. 강점
+- 강점 1
+- 강점 2
+- 강점 3
+
+## 3. 리스크
+- 리스크 1
+- 리스크 2
+- 리스크 3
+
+## 4. 재무 분석
+(투자금 회수 기간, 손익분기점, 적정 임대료 협상 제안)
+
+## 5. 계약 전 확인 체크리스트
+- [ ] 항목 1
+- [ ] 항목 2
+- [ ] 항목 3
+
+## 6. 세종의 최종 의견: GO / 조건부 GO / NO-GO
+(판정 이유 2~3문장)`;
+
+  const response = await axios.post(
+    'https://api.anthropic.com/v1/messages',
+    {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }],
+    },
+    {
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      timeout: 60000,
+    }
+  );
+
+  const text = response.data.content[0].text;
+  const parsed = parseAIResponse(text);
+
+  return {
+    opinion: text, // 원본 텍스트 (하위 호환)
+    ...parsed,
+  };
+}
+
+module.exports = { generateAIOpinion };
