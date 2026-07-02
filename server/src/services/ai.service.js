@@ -1,7 +1,11 @@
 const Anthropic = require('@anthropic-ai/sdk');
 require('dotenv').config();
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 60000, // 60초
+  maxRetries: 2,
+});
 
 function formatMoney(val) {
   return val ? `${Number(val).toLocaleString()}만원` : '미입력';
