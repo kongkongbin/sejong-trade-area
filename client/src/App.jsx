@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import LocationList from './pages/LocationList';
 import LocationForm from './pages/LocationForm';
+import ChatPage from './pages/ChatPage';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -21,41 +22,49 @@ function Topbar() {
     navigate('/login');
   }
 
-  const navBtn = (path, label) => (
-    <button
-      onClick={() => navigate(path)}
-      style={{
-        background: location.pathname.startsWith(path) ? 'rgba(201,168,76,0.2)' : 'none',
-        border: location.pathname.startsWith(path) ? '1px solid rgba(201,168,76,0.4)' : '1px solid transparent',
-        color: location.pathname.startsWith(path) ? '#c9a84c' : 'rgba(255,255,255,0.7)',
-        padding: '5px 12px', borderRadius: 6, fontSize: 12,
-        cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
-      }}
-    >
-      {label}
-    </button>
-  );
+  const navBtn = (path, icon, label) => {
+    const active = location.pathname.startsWith(path);
+    return (
+      <button
+        onClick={() => navigate(path)}
+        style={{
+          background: active ? 'rgba(201,168,76,0.2)' : 'none',
+          border: active ? '1px solid rgba(201,168,76,0.4)' : '1px solid transparent',
+          color: active ? '#c9a84c' : 'rgba(255,255,255,0.7)',
+          padding: '5px 10px', borderRadius: 6, fontSize: 12,
+          cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>{icon}</span>
+        <span className="nav-label" style={{ marginLeft: 4 }}>{label}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="topbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: '#c9a84c', fontSize: 18 }}>🏢</span>
-        <span>세종홀딩스 상권/입지 분석</span>
-        <div style={{ display: 'flex', gap: 6, marginLeft: 16 }}>
-          {navBtn('/dashboard', '📊 상권분석')}
-          {navBtn('/locations', '📋 입지데이터')}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ color: '#c9a84c', fontSize: 18, flexShrink: 0 }}>🏢</span>
+        <span className="topbar-title" style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          세종홀딩스 상권/입지 분석
+        </span>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 8, flexShrink: 0 }}>
+          {navBtn('/dashboard', '📊', '상권분석')}
+          {navBtn('/locations', '📋', '입지데이터')}
+          {navBtn('/chat', '🤖', 'AI 상담')}
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        {user.name && (
-          <span style={{ fontSize: 13, color: '#c9a84c', fontWeight: 500 }}>{user.name}</span>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span className="topbar-user" style={{ fontSize: 13, color: '#c9a84c', fontWeight: 500 }}>
+          {user.name}
+        </span>
         <button
           onClick={handleLogout}
           style={{
             background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.4)',
-            color: '#c9a84c', padding: '5px 12px', borderRadius: 6,
-            fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+            color: '#c9a84c', padding: '5px 10px', borderRadius: 6,
+            fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
           }}
         >
           로그아웃
@@ -80,6 +89,7 @@ export default function App() {
                   <Route path="/locations" element={<LocationList />} />
                   <Route path="/location/new" element={<LocationForm />} />
                   <Route path="/location/:id" element={<LocationForm />} />
+                  <Route path="/chat" element={<ChatPage />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </>
