@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import AIOpinionEditor from '../components/AIOpinionEditor';
+import { printLocationReport } from '../components/LocationPrintReport';
 
 const TABS = ['재무정보', '업종정보', '현장체크', '계약정보', '메모'];
 
@@ -186,6 +187,19 @@ export default function LocationForm() {
         </h2>
         {savedId && (
           <span style={{ fontSize: 12, color: '#2ecc71', marginLeft: 4 }}>✅ 저장됨</span>
+        )}
+        {savedId && (
+          <button
+            onClick={() => printLocationReport(form, aiData)}
+            style={{
+              marginLeft: 'auto', height: 34, padding: '0 14px',
+              background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+              color: '#0d1b2e', border: 'none', borderRadius: 6,
+              fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+            }}
+          >
+            🖨️ 리포트 출력
+          </button>
         )}
       </div>
 
