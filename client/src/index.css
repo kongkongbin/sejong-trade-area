@@ -322,6 +322,10 @@ select:focus {
   .desktop-table-wrap {
     display: none;
   }
+
+  .location-form-page {
+    padding: 12px !important;
+  }
 }
 
 /* 데스크톱/태블릿에서는 모바일 카드 리스트 숨김 */
