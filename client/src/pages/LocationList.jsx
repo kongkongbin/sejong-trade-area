@@ -65,7 +65,7 @@ export default function LocationList() {
   );
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+    <div className="location-list-page" style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
       {/* 헤더 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
@@ -85,7 +85,7 @@ export default function LocationList() {
       </div>
 
       {/* 필터 바 */}
-      <div style={{
+      <div className="location-filter-bar" style={{
         background: '#fff', borderRadius: 10, padding: '14px 18px',
         marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center',
@@ -95,6 +95,7 @@ export default function LocationList() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="🔍 주소 또는 업종 검색"
+          className="location-search-input"
           style={{
             height: 36, padding: '0 12px', border: '1.5px solid #e2e6ea',
             borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
@@ -160,6 +161,7 @@ export default function LocationList() {
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          <div className="location-table-scroll">
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f8f9fb', borderBottom: '1px solid #e2e6ea' }}>
@@ -172,6 +174,7 @@ export default function LocationList() {
                 ].map(col => (
                   <th key={col.key}
                     onClick={() => handleSort(col.key)}
+                    className={col.key === 'created_at' ? 'col-hide-mobile' : undefined}
                     style={{
                       padding: '12px 16px', textAlign: 'left', fontWeight: 600,
                       color: '#5a6a7e', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -218,7 +221,7 @@ export default function LocationList() {
                         }}>{verdict.label}</span>
                       ) : <span style={{ color: '#ccc', fontSize: 12 }}>미분석</span>}
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#9aa5b1', whiteSpace: 'nowrap' }}>
+                    <td className="col-hide-mobile" style={{ padding: '12px 16px', color: '#9aa5b1', whiteSpace: 'nowrap' }}>
                       {new Date(item.created_at).toLocaleDateString('ko-KR')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
@@ -236,6 +239,7 @@ export default function LocationList() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

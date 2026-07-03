@@ -290,6 +290,33 @@ select:focus {
     font-size: 12px;
     padding: 5px 10px;
   }
+
+  /* 입지 데이터 목록 */
+  .location-list-page {
+    padding: 12px !important;
+  }
+
+  .location-filter-bar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .location-search-input {
+    width: 100% !important;
+  }
+
+  .location-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .location-table-scroll table {
+    min-width: 600px;
+  }
+
+  .col-hide-mobile {
+    display: none;
+  }
 }
 
 /* 태블릿 */
