@@ -176,17 +176,17 @@ export default function LocationForm() {
     (Number(form.interior_budget)||0) + (Number(form.other_initial_cost)||0);
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+    <div className="location-form-page" style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <button onClick={() => navigate('/locations')} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 13, color: '#5a6a7e', fontFamily: 'inherit',
+          fontSize: 13, color: '#5a6a7e', fontFamily: 'inherit', whiteSpace: 'nowrap',
         }}>← 목록</button>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, whiteSpace: 'nowrap' }}>
           {id ? '입지 데이터 수정' : '새 입지 추가'}
         </h2>
         {savedId && (
-          <span style={{ fontSize: 12, color: '#2ecc71', marginLeft: 4 }}>✅ 저장됨</span>
+          <span style={{ fontSize: 12, color: '#2ecc71', marginLeft: 4, whiteSpace: 'nowrap' }}>✅ 저장됨</span>
         )}
         {savedId && (
           <button
@@ -196,6 +196,7 @@ export default function LocationForm() {
               background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
               color: '#0d1b2e', border: 'none', borderRadius: 6,
               fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
             🖨️ 리포트 출력
