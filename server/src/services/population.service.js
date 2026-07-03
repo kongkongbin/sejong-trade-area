@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { reverseGeocode } = require('./geocode.service');
+const { getWorkplacePopulation } = require('./sgis.service');
 
 async function getPopulationAnalysis(lat, lng) {
   // 1. 좌표 → 행정동 찾기
@@ -88,4 +89,19 @@ function buildResult(dongName, sigunguName, rows) {
   };
 }
 
-module.exports = { getPopulationAnalysis };
+module.exports = { getPopulationAnalysis, getWorkplaceAndHouseholdAnalysis };
+
+// 좌표 → 역지오코딩 → SGIS 직장인구/배후세대 조회
+async function getWorkplaceAndHouseholdAnalysis(lat, lng) {
+  const geo = await reverseGeocode(lat, lng);
+  if (!geo) return null;
+
+  const { dongName, sigunguName } = geo;
+  const result = await getWorkplacePopulation(sigunguName, dongName);
+
+  if (!result) {
+    return { dongName, sigunguName, matched: false };
+  }
+
+  return { dongName, sigunguName, matched: true, ...result };
+}

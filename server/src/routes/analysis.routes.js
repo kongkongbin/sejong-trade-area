@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const { getFranchiseAnalysis } = require('../services/store.service');
-const { getPopulationAnalysis } = require('../services/population.service');
+const { getPopulationAnalysis, getWorkplaceAndHouseholdAnalysis } = require('../services/population.service');
 const { getTransitAnalysis } = require('../services/transit.service');
 const { getFacilityAnalysis } = require('../services/facility.service');
 const { calcScore } = require('../services/score.service');
@@ -87,6 +87,24 @@ router.post('/population', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('인구 분석 오류:', err.message);
     res.status(500).json({ message: '인구 분석 중 오류가 발생했습니다.' });
+  }
+});
+
+// POST /api/analysis/workplace-population — 직장인구 + 배후세대 (SGIS)
+router.post('/workplace-population', requireAuth, async (req, res) => {
+  const { lat, lng } = req.body;
+  if (!lat || !lng) {
+    return res.status(400).json({ message: '좌표(lat, lng)가 필요합니다.' });
+  }
+  try {
+    const result = await getWorkplaceAndHouseholdAnalysis(lat, lng);
+    if (!result) {
+      return res.status(404).json({ message: '해당 위치의 행정동 정보를 찾을 수 없습니다.' });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('직장인구 분석 오류:', err.message);
+    res.status(500).json({ message: '직장인구 분석 중 오류가 발생했습니다.' });
   }
 });
 
