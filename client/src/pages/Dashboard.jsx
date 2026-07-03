@@ -13,7 +13,7 @@ import { printReport } from '../components/PrintReport';
 import {
   fetchFranchiseAnalysis, fetchPopulationAnalysis,
   fetchTransitAnalysis, fetchFacilityAnalysis,
-  fetchReverseGeocode, fetchScore,
+  fetchReverseGeocode, fetchScore, fetchWorkplacePopulation,
 } from '../api/analysis';
 
 const TABS = [
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [center, setCenter] = useState(null);
   const [franchiseData, setFranchiseData] = useState(null);
   const [populationData, setPopulationData] = useState(null);
+  const [workplaceData, setWorkplaceData] = useState(null);
   const [transitData, setTransitData] = useState(null);
   const [facilityData, setFacilityData] = useState(null);
   const [scoreData, setScoreData] = useState(null);
@@ -47,28 +48,32 @@ export default function Dashboard() {
     setLoading(true);
     setFranchiseData(null);
     setPopulationData(null);
+    setWorkplaceData(null);
     setTransitData(null);
     setFacilityData(null);
     setScoreData(null);
     setStoreMarkers([]);
     setActiveStore(null);
 
-    const [franchise, population, transit, facility] = await Promise.allSettled([
+    const [franchise, population, transit, facility, workplace] = await Promise.allSettled([
       fetchFranchiseAnalysis({ lat, lng, radius: r }),
       fetchPopulationAnalysis({ lat, lng }),
       fetchTransitAnalysis({ lat, lng, radius: r }),
       fetchFacilityAnalysis({ lat, lng, radius: r }),
+      fetchWorkplacePopulation({ lat, lng }),
     ]);
 
     const fd = franchise.status === 'fulfilled' ? franchise.value : null;
     const pd = population.status === 'fulfilled' ? population.value : null;
     const td = transit.status === 'fulfilled' ? transit.value : null;
     const fcd = facility.status === 'fulfilled' ? facility.value : null;
+    const wd = workplace.status === 'fulfilled' ? workplace.value : null;
 
     if (fd) setFranchiseData(fd);
     if (pd) setPopulationData(pd);
     if (td) setTransitData(td);
     if (fcd) setFacilityData(fcd);
+    if (wd) setWorkplaceData(wd);
 
     setLoading(false);
 
@@ -228,7 +233,9 @@ export default function Dashboard() {
         </div>
 
         <div>
-          {activeTab === 'population' && <PopulationTab data={populationData} loading={loading} />}
+          {activeTab === 'population' && (
+            <PopulationTab data={populationData} loading={loading} workplaceData={workplaceData} />
+          )}
           {activeTab === 'franchise' && (
             <FranchiseTab data={franchiseData} loading={loading} onStoreClick={handleStoreClick} activeStoreId={activeStore?.id} />
           )}

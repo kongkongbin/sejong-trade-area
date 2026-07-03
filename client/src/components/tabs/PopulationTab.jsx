@@ -1,107 +1,249 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import NaverMap from '../components/NaverMap';
+import AddressSearch from '../components/AddressSearch';
+import ScoreCard from '../components/ScoreCard';
+import FranchiseTab from '../components/tabs/FranchiseTab';
+import PopulationTab from '../components/tabs/PopulationTab';
+import TransitTab from '../components/tabs/TransitTab';
+import HospitalTab from '../components/tabs/HospitalTab';
+import ChildcareTab from '../components/tabs/ChildcareTab';
+import SchoolTab from '../components/tabs/SchoolTab';
+import { printReport } from '../components/PrintReport';
+import {
+  fetchFranchiseAnalysis, fetchPopulationAnalysis,
+  fetchTransitAnalysis, fetchFacilityAnalysis,
+  fetchReverseGeocode, fetchScore, fetchWorkplacePopulation,
+} from '../api/analysis';
 
-function AgeBar({ value, max, gender }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  const color = gender === 'M' ? '#4a7fc1' : '#e05c7a';
+const TABS = [
+  { key: 'population', label: '생활인구' },
+  { key: 'franchise', label: '프랜차이즈' },
+  { key: 'transit', label: '대중교통' },
+  { key: 'hospital', label: '종합병원' },
+  { key: 'childcare', label: '보육시설' },
+  { key: 'school', label: '학교' },
+];
+
+const RADIUS_OPTIONS = [100, 300, 500, 1000, 1500, 2000, 3000];
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('population');
+  const [radius, setRadius] = useState(500);
+  const [center, setCenter] = useState(null);
+  const [franchiseData, setFranchiseData] = useState(null);
+  const [populationData, setPopulationData] = useState(null);
+  const [workplaceData, setWorkplaceData] = useState(null);
+  const [transitData, setTransitData] = useState(null);
+  const [facilityData, setFacilityData] = useState(null);
+  const [scoreData, setScoreData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [searchedAddress, setSearchedAddress] = useState('');
+  const [storeMarkers, setStoreMarkers] = useState([]);
+  const [activeStore, setActiveStore] = useState(null);
+
+  const runAnalysis = useCallback(async ({ lat, lng }, r) => {
+    setCenter({ lat, lng });
+    setLoading(true);
+    setFranchiseData(null);
+    setPopulationData(null);
+    setWorkplaceData(null);
+    setTransitData(null);
+    setFacilityData(null);
+    setScoreData(null);
+    setStoreMarkers([]);
+    setActiveStore(null);
+
+    const [franchise, population, transit, facility, workplace] = await Promise.allSettled([
+      fetchFranchiseAnalysis({ lat, lng, radius: r }),
+      fetchPopulationAnalysis({ lat, lng }),
+      fetchTransitAnalysis({ lat, lng, radius: r }),
+      fetchFacilityAnalysis({ lat, lng, radius: r }),
+      fetchWorkplacePopulation({ lat, lng }),
+    ]);
+
+    const fd = franchise.status === 'fulfilled' ? franchise.value : null;
+    const pd = population.status === 'fulfilled' ? population.value : null;
+    const td = transit.status === 'fulfilled' ? transit.value : null;
+    const fcd = facility.status === 'fulfilled' ? facility.value : null;
+    const wd = workplace.status === 'fulfilled' ? workplace.value : null;
+
+    if (fd) setFranchiseData(fd);
+    if (pd) setPopulationData(pd);
+    if (td) setTransitData(td);
+    if (fcd) setFacilityData(fcd);
+    if (wd) setWorkplaceData(wd);
+
+    setLoading(false);
+
+    // 점수 계산 (4개 분석 끝난 후) - 무거운 매장 리스트 제외하고 전송
+    if (fd || pd || td || fcd) {
+      try {
+        const lightFd = fd ? {
+          totalCount: fd.totalCount,
+          byCategory: fd.byCategory?.map(({ code, name, count, competitionLevel }) => ({
+            code, name, count, competitionLevel
+          })),
+        } : null;
+
+        const score = await fetchScore({
+          populationData: pd,
+          transitData: td,
+          franchiseData: lightFd,
+          facilityData: fcd,
+        });
+        setScoreData(score);
+      } catch {}
+    }
+  }, []);
+
+  const handleMapClick = useCallback(async ({ lat, lng }) => {
+    setSearchedAddress('');
+    runAnalysis({ lat, lng }, radius);
+    try {
+      const geo = await fetchReverseGeocode({ lat, lng });
+      if (geo) {
+        const addr = geo.roadAddress || `${geo.sidoName} ${geo.sigunguName} ${geo.dongName}`;
+        setSearchedAddress(addr);
+      }
+    } catch {}
+  }, [radius, runAnalysis]);
+
+  const handleRadiusChange = (e) => {
+    const newRadius = Number(e.target.value);
+    setRadius(newRadius);
+    if (center) runAnalysis(center, newRadius);
+  };
+
+  const handleSearchResult = ({ lat, lng, roadAddress, jibunAddress }) => {
+    setSearchedAddress(roadAddress || jibunAddress || '');
+    runAnalysis({ lat, lng }, radius);
+  };
+
+  const handleStoreClick = useCallback((storeOrAction) => {
+    if (!storeOrAction) { setStoreMarkers([]); setActiveStore(null); return; }
+    if (storeOrAction.bulk) {
+      setStoreMarkers(storeOrAction.stores.map(s => ({ ...s, categoryCode: storeOrAction.categoryCode })));
+      setActiveStore(null);
+      return;
+    }
+    setActiveStore(storeOrAction);
+  }, []);
+
+  const handlePrint = () => {
+    printReport({ center, address: searchedAddress, radius, populationData, franchiseData, transitData, facilityData, scoreData });
+  };
+
+  const hasData = populationData || franchiseData || transitData || facilityData;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-      <div style={{
-        width: `${pct}%`, maxWidth: '100%', height: 10,
-        background: color, borderRadius: 2, minWidth: pct > 0 ? 2 : 0,
-        transition: 'width 0.3s',
-      }} />
-      <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>
-        {value.toLocaleString()}
-      </span>
-    </div>
-  );
-}
-
-export default function PopulationTab({ data, loading }) {
-  if (loading) {
-    return <p style={{ color: '#888', padding: '16px 0', fontSize: 13 }}>분석 중...</p>;
-  }
-
-  if (!data && !loading) {
-    return <p style={{ color: '#aaa', padding: '16px 0', fontSize: 13 }}>지도를 클릭해서 위치를 선택하세요.</p>;
-  }
-
-  if (!data) return null;
-
-  const maxGroupTotal = Math.max(...data.ageGroups.map((g) => g.total));
-
-  return (
-    <div>
-      {/* 행정동 정보 */}
-      <div style={{
-        background: '#f4f5f7', borderRadius: 8, padding: '10px 14px',
-        marginBottom: 16, fontSize: 13,
-      }}>
-        <span style={{ color: '#888' }}>분석 행정동: </span>
-        <strong>대구광역시 {data.sigunguName} {data.dongName}</strong>
+    <div className="dashboard">
+      <div className="map-panel">
+        <NaverMap
+          center={center}
+          radius={radius}
+          onMapClick={handleMapClick}
+          storeMarkers={storeMarkers}
+          activeStore={activeStore}
+        />
       </div>
 
-      {/* 총 거주 인구 */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f1f3',
-      }}>
-        <div>
-          <p style={{ fontSize: 12, color: '#888', margin: '0 0 4px' }}>거주 인구(추정)</p>
-          <p style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>
-            {data.total.toLocaleString()}명
-          </p>
-          {data.maxAge && (
-            <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>
-              {data.maxAge} 인구가 가장 많아요
-            </p>
+      <div className="data-panel">
+        <AddressSearch onResult={handleSearchResult} />
+
+        {searchedAddress && (
+          <div style={{
+            fontSize: 12, color: '#5a6a7e', marginBottom: 12,
+            padding: '6px 10px', background: '#f5ecd4',
+            borderRadius: 6, borderLeft: '3px solid #c9a84c',
+          }}>
+            📍 {searchedAddress}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ fontSize: 13, color: '#5a6a7e', fontWeight: 500 }}>분석 반경</span>
+          <select value={radius} onChange={handleRadiusChange}>
+            {RADIUS_OPTIONS.map((r) => (
+              <option key={r} value={r}>{r >= 1000 ? `${r / 1000}km` : `${r}m`}</option>
+            ))}
+          </select>
+          {center && center.lat != null && !isNaN(Number(center.lat)) && (
+            <span style={{ fontSize: 11, color: '#9aa5b1' }}>
+              {Number(center.lat).toFixed(4)}, {Number(center.lng).toFixed(4)}
+            </span>
+          )}
+          {hasData && (
+            <button onClick={handlePrint} style={{
+              marginLeft: 'auto', height: 32, padding: '0 12px',
+              background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+              color: '#0d1b2e', border: 'none', borderRadius: 6,
+              fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
+            }}>
+              🖨️ 인쇄/PDF
+            </button>
           )}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, color: '#4a7fc1', marginBottom: 4 }}>
-            ■ 남 {data.totalM.toLocaleString()}명
-          </div>
-          <div style={{ fontSize: 12, color: '#e05c7a' }}>
-            ■ 여 {data.totalF.toLocaleString()}명
-          </div>
+
+        {/* 종합 점수 카드 */}
+        {(scoreData || loading) && (
+          <ScoreCard scoreData={scoreData} loading={loading && !scoreData} />
+        )}
+
+        {/* 입지 저장 버튼 */}
+        {hasData && !loading && (
+          <button
+            onClick={() => {
+              const params = new URLSearchParams({
+                address: searchedAddress || '',
+                lat: center?.lat || '',
+                lng: center?.lng || '',
+                radius,
+              });
+              navigate(`/location/new?${params.toString()}`);
+            }}
+            style={{
+              width: '100%', height: 42, marginBottom: 14,
+              background: 'linear-gradient(135deg, #c9a84c, #e8c96a)',
+              color: '#0d1b2e', border: 'none', borderRadius: 8,
+              fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+              cursor: 'pointer', boxShadow: '0 2px 6px rgba(201,168,76,0.3)',
+            }}
+          >
+            📋 이 위치 입지 저장하기
+          </button>
+        )}
+
+        <div className="tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              className={activeTab === tab.key ? 'active' : ''}
+              onClick={() => {
+                setActiveTab(tab.key);
+                if (tab.key !== 'franchise') { setStoreMarkers([]); setActiveStore(null); }
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* 연령대별 바 차트 */}
-      <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#1a2233' }}>
-        연령대별 인구
-      </p>
-      <div>
-        {data.ageGroups.map((group) => (
-          <div key={group.age} style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 12, color: '#555', fontWeight: 500 }}>{group.age}</span>
-              <span style={{ fontSize: 11, color: '#aaa' }}>
-                {group.total.toLocaleString()}명
-                {group.age === data.maxAge && (
-                  <span style={{
-                    marginLeft: 6, background: '#1a2233', color: '#fff',
-                    fontSize: 10, padding: '1px 5px', borderRadius: 3,
-                  }}>최고</span>
-                )}
-                {group.age === data.minAge && (
-                  <span style={{
-                    marginLeft: 6, background: '#aaa', color: '#fff',
-                    fontSize: 10, padding: '1px 5px', borderRadius: 3,
-                  }}>최저</span>
-                )}
-              </span>
-            </div>
-            <AgeBar value={group.M} max={maxGroupTotal} gender="M" />
-            <AgeBar value={group.F} max={maxGroupTotal} gender="F" />
-          </div>
-        ))}
-      </div>
-
-      {/* 범례 */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 12, fontSize: 11, color: '#888' }}>
-        <span><span style={{ color: '#4a7fc1' }}>■</span> 남자</span>
-        <span><span style={{ color: '#e05c7a' }}>■</span> 여자</span>
+        <div>
+          {activeTab === 'population' && (
+            <PopulationTab data={populationData} loading={loading} workplaceData={workplaceData} />
+          )}
+          {activeTab === 'franchise' && (
+            <FranchiseTab data={franchiseData} loading={loading} onStoreClick={handleStoreClick} activeStoreId={activeStore?.id} />
+          )}
+          {activeTab === 'transit' && <TransitTab data={transitData} loading={loading} />}
+          {activeTab === 'hospital' && <HospitalTab data={facilityData} loading={loading} />}
+          {activeTab === 'childcare' && <ChildcareTab data={facilityData} loading={loading} />}
+          {activeTab === 'school' && <SchoolTab data={facilityData} loading={loading} />}
+        </div>
       </div>
     </div>
   );

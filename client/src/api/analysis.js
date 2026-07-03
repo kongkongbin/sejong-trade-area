@@ -10,6 +10,11 @@ export async function fetchPopulationAnalysis({ lat, lng }) {
   return res.data;
 }
 
+export async function fetchWorkplacePopulation({ lat, lng }) {
+  const res = await api.post('/analysis/workplace-population', { lat, lng });
+  return res.data;
+}
+
 export async function fetchTransitAnalysis({ lat, lng, radius }) {
   const res = await api.post('/analysis/transit', { lat, lng, radius });
   return res.data;
