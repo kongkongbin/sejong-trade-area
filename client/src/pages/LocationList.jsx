@@ -160,8 +160,9 @@ export default function LocationList() {
           )}
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-          <div className="location-table-scroll">
+        <>
+        {/* 데스크톱: 테이블 */}
+        <div className="desktop-table-wrap" style={{ background: '#fff', borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f8f9fb', borderBottom: '1px solid #e2e6ea' }}>
@@ -174,7 +175,6 @@ export default function LocationList() {
                 ].map(col => (
                   <th key={col.key}
                     onClick={() => handleSort(col.key)}
-                    className={col.key === 'created_at' ? 'col-hide-mobile' : undefined}
                     style={{
                       padding: '12px 16px', textAlign: 'left', fontWeight: 600,
                       color: '#5a6a7e', cursor: 'pointer', whiteSpace: 'nowrap',
@@ -221,7 +221,7 @@ export default function LocationList() {
                         }}>{verdict.label}</span>
                       ) : <span style={{ color: '#ccc', fontSize: 12 }}>미분석</span>}
                     </td>
-                    <td className="col-hide-mobile" style={{ padding: '12px 16px', color: '#9aa5b1', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '12px 16px', color: '#9aa5b1', whiteSpace: 'nowrap' }}>
                       {new Date(item.created_at).toLocaleDateString('ko-KR')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
@@ -239,8 +239,56 @@ export default function LocationList() {
               })}
             </tbody>
           </table>
-          </div>
         </div>
+
+        {/* 모바일: 카드 리스트 (스크롤 없이 세로로 쌓임) */}
+        <div className="mobile-card-list">
+          {filtered.map(item => {
+            const verdict = VERDICT_STYLE[item.ai_verdict];
+            return (
+              <div
+                key={item.id}
+                onClick={() => navigate(`/location/${item.id}`)}
+                style={{
+                  background: '#fff', borderRadius: 10, padding: 14, marginBottom: 10,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, flex: 1, marginRight: 8 }}>
+                    {item.address || '-'}
+                  </div>
+                  {verdict ? (
+                    <span style={{
+                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      background: verdict.bg, color: verdict.color, whiteSpace: 'nowrap',
+                    }}>{verdict.label}</span>
+                  ) : <span style={{ color: '#ccc', fontSize: 11, whiteSpace: 'nowrap' }}>미분석</span>}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5, color: '#5a6a7e' }}>
+                  <span>
+                    {item.target_business || '업종 미입력'}
+                    {item.monthly_rent ? ` · 월세 ${Number(item.monthly_rent).toLocaleString()}만원` : ''}
+                  </span>
+                  <span style={{ color: '#bbb' }}>
+                    {new Date(item.created_at).toLocaleDateString('ko-KR')}
+                  </span>
+                </div>
+                <div style={{ marginTop: 10, textAlign: 'right' }}>
+                  <button
+                    onClick={e => handleDelete(item.id, e)}
+                    style={{
+                      padding: '5px 12px', background: '#fff0f0', color: '#e74c3c',
+                      border: 'none', borderRadius: 6, fontSize: 11.5,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >삭제</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        </>
       )}
     </div>
   );
