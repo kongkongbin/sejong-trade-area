@@ -1,5 +1,46 @@
 const axios = require('axios');
+const pool = require('../config/db');
 require('dotenv').config();
+
+// 같은 업종으로 이미 AI 분석이 끝난 과거 입지 사례 조회 (최근 3건)
+async function findSimilarLocations(currentId, targetBusiness) {
+  if (!targetBusiness) return [];
+
+  const [rows] = await pool.query(
+    `SELECT address, monthly_rent, expected_daily_sales, ai_verdict, ai_summary, ai_verdict_reason
+     FROM location_data
+     WHERE target_business = ?
+       AND id != ?
+       AND ai_verdict IS NOT NULL
+     ORDER BY ai_generated_at DESC
+     LIMIT 3`,
+    [targetBusiness, currentId]
+  );
+
+  return rows;
+}
+
+const VERDICT_LABEL = {
+  GO: 'GO',
+  CONDITIONAL_GO: '조건부 GO',
+  NO_GO: 'NO-GO',
+};
+
+// 유사 사례 목록을 프롬프트에 넣을 텍스트로 변환
+function buildSimilarCasesText(similarCases) {
+  if (!similarCases.length) {
+    return '(같은 업종의 과거 분석 사례 없음)';
+  }
+
+  return similarCases
+    .map((c, i) => {
+      const verdict = VERDICT_LABEL[c.ai_verdict] || c.ai_verdict || '-';
+      const rent = c.monthly_rent ? `월세 ${Number(c.monthly_rent).toLocaleString()}만원` : '월세 미입력';
+      const summary = (c.ai_summary || c.ai_verdict_reason || '').slice(0, 80);
+      return `${i + 1}. ${c.address} — ${rent} — 판정: ${verdict}${summary ? ` — ${summary}` : ''}`;
+    })
+    .join('\n');
+}
 
 // AI 응답 텍스트를 구조화된 데이터로 파싱
 function parseAIResponse(text) {
@@ -88,7 +129,7 @@ function parseAIResponse(text) {
 
 async function generateAIOpinion({ locationData, analysisData }) {
   const {
-    address, target_business, premium, deposit, monthly_rent,
+    id, address, target_business, premium, deposit, monthly_rent,
     interior_budget, other_initial_cost, avg_price_per_customer,
     expected_daily_sales, business_hours, visibility_score,
     accessibility_score, parking_available, building_age,
@@ -98,6 +139,9 @@ async function generateAIOpinion({ locationData, analysisData }) {
   } = locationData;
 
   const { populationData, transitData, franchiseData, facilityData, scoreData } = analysisData;
+
+  const similarCases = await findSimilarLocations(id, target_business);
+  const similarCasesText = buildSimilarCasesText(similarCases);
 
   const totalInitial = (Number(premium)||0) + (Number(deposit)||0) +
     (Number(interior_budget)||0) + (Number(other_initial_cost)||0);
@@ -146,6 +190,10 @@ async function generateAIOpinion({ locationData, analysisData }) {
 - 재개발 계획: ${redevelopment_plan ? `있음 (${redevelopment_note || ''})` : '없음'}
 - 임대인 특이사항: ${landlord_note || '없음'}
 - 현장 메모: ${field_memo || '없음'}
+
+## 유사 사례 (같은 업종의 과거 분석 결과, 참고용)
+${similarCasesText}
+위 사례들과 비교했을 때 이번 입지가 상대적으로 어떤지도 참고해서 의견에 반영해주세요. 단, 사례가 없으면 이 항목은 무시하세요.
 
 반드시 아래 형식을 정확히 지켜서 작성해주세요 (파싱에 사용됩니다):
 
