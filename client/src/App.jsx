@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import LocationList from './pages/LocationList';
 import LocationForm from './pages/LocationForm';
 import ChatPage from './pages/ChatPage';
+import SearchPage from './pages/SearchPage';
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
@@ -53,6 +54,7 @@ function Topbar() {
           {navBtn('/dashboard', '📊', '상권분석')}
           {navBtn('/locations', '📋', '입지데이터')}
           {navBtn('/chat', '🤖', 'AI 상담')}
+          {navBtn('/search', '🔍', '매물 검색')}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -90,6 +92,7 @@ export default function App() {
                   <Route path="/location/new" element={<LocationForm />} />
                   <Route path="/location/:id" element={<LocationForm />} />
                   <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/search" element={<SearchPage />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </>
