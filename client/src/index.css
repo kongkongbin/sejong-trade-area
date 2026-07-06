@@ -335,6 +335,13 @@ select:focus {
   }
 }
 
+/* PC에서는 입지 데이터 수정 폭을 더 넓게 */
+@media (min-width: 769px) {
+  .location-form-page {
+    max-width: 960px !important;
+  }
+}
+
 /* 태블릿 */
 @media (max-width: 1024px) and (min-width: 769px) {
   .dashboard {
