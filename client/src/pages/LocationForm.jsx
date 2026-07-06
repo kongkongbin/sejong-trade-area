@@ -58,6 +58,14 @@ const VERDICT_OPTIONS = [
   { value: 'NO_GO', label: '❌ NO-GO', color: '#e74c3c' },
 ];
 
+function formatManwon(value) {
+  const v = Math.round(Number(value) || 0);
+  if (v < 10000) return `${v.toLocaleString()}만원`;
+  const eok = Math.floor(v / 10000);
+  const rest = v % 10000;
+  return rest > 0 ? `${eok}억 ${rest.toLocaleString()}만원` : `${eok}억원`;
+}
+
 export default function LocationForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -297,7 +305,7 @@ export default function LocationForm() {
               </Field>
               <Field label="총 초기투자금">
                 <div style={{ height: 38, padding: '0 12px', lineHeight: '38px', background: '#f5ecd4', borderRadius: 8, fontSize: 14, fontWeight: 700, color: '#0d1b2e' }}>
-                  {totalInitial.toLocaleString()}만원
+                  {formatManwon(totalInitial)}
                 </div>
               </Field>
             </div>
