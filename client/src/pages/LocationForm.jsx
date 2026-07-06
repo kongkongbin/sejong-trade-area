@@ -279,7 +279,7 @@ export default function LocationForm() {
         <div style={{ padding: 20 }}>
           {/* 재무정보 */}
           {activeTab === 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
               <Field label="권리금 (만원)">
                 <input type="number" value={form.premium} onChange={e => set('premium', e.target.value)} style={inputStyle} placeholder="0" />
               </Field>
@@ -305,7 +305,7 @@ export default function LocationForm() {
 
           {/* 업종정보 */}
           {activeTab === 1 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
               <Field label="입점 예정 업종">
                 <input value={form.target_business} onChange={e => set('target_business', e.target.value)} style={inputStyle} placeholder="예: 카페, 편의점" />
               </Field>
@@ -325,7 +325,7 @@ export default function LocationForm() {
           {activeTab === 2 && (
             <div>
               {nearbyStats && (
-                <div style={{
+                <div className="nearby-hint-box" style={{
                   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                   background: '#f5ecd4', border: '1px solid #e8c96a', borderRadius: 8,
                   padding: '10px 14px', marginBottom: 14, fontSize: 12.5, color: '#5a4a1a',
@@ -337,6 +337,7 @@ export default function LocationForm() {
                   <button
                     type="button"
                     onClick={applyNearbyStats}
+                    className="nearby-hint-btn"
                     style={{
                       marginLeft: 'auto', padding: '4px 12px', background: '#0d1b2e',
                       color: '#fff', border: 'none', borderRadius: 6, fontSize: 11.5,
@@ -347,7 +348,7 @@ export default function LocationForm() {
                   </button>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+              <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                 <Field label="가시성 (1~5점)">
                   <ScoreInput value={form.visibility_score} onChange={v => set('visibility_score', v)} />
                 </Field>
@@ -393,7 +394,7 @@ export default function LocationForm() {
 
           {/* 계약정보 */}
           {activeTab === 3 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
               <Field label="계약 기간">
                 <input value={form.contract_period} onChange={e => set('contract_period', e.target.value)} style={inputStyle} placeholder="예: 2년" />
               </Field>

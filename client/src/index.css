@@ -326,6 +326,20 @@ select:focus {
   .location-form-page {
     padding: 12px !important;
   }
+
+  .form-grid-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nearby-hint-box {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .nearby-hint-btn {
+    margin-left: 0 !important;
+    width: 100%;
+  }
 }
 
 /* 데스크톱/태블릿에서는 모바일 카드 리스트 숨김 */
