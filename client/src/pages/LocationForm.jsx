@@ -71,6 +71,7 @@ export default function LocationForm() {
   const [aiData, setAiData] = useState(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [showAiEditor, setShowAiEditor] = useState(false);
+  const [nearbyStats, setNearbyStats] = useState(null);
 
   useEffect(() => {
     if (id) {
@@ -80,6 +81,7 @@ export default function LocationForm() {
         setForm(data);
         setAddressInput(data.address);
         setSavedId(Number(id));
+        if (data.lat && data.lng) fetchNearbyStats(data.lat, data.lng);
 
         // 저장된 AI 데이터 있으면 불러오기
         if (data.ai_verdict) {
@@ -121,6 +123,28 @@ export default function LocationForm() {
 
   const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
 
+  async function fetchNearbyStats(lat, lng) {
+    if (!lat || !lng) return;
+    try {
+      const res = await api.get('/locations/nearby-average', {
+        params: { lat, lng, radius: 500, excludeId: id || undefined },
+      });
+      setNearbyStats(res.data.count > 0 ? res.data : null);
+    } catch {
+      setNearbyStats(null);
+    }
+  }
+
+  function applyNearbyStats() {
+    if (!nearbyStats) return;
+    setForm(f => ({
+      ...f,
+      visibility_score: Math.round(nearbyStats.avgVisibility),
+      accessibility_score: Math.round(nearbyStats.avgAccessibility),
+      nearby_vacancy_rate: nearbyStats.avgVacancyRate,
+    }));
+  }
+
   async function handleAddressSearch(e) {
     e.preventDefault();
     if (!addressInput.trim()) return;
@@ -130,6 +154,7 @@ export default function LocationForm() {
       set('lat', res.data.lat);
       set('lng', res.data.lng);
       setMsg('✅ 주소 확인됨');
+      fetchNearbyStats(res.data.lat, res.data.lng);
     } catch {
       setMsg('❌ 주소를 찾을 수 없습니다.');
     }
@@ -299,6 +324,29 @@ export default function LocationForm() {
           {/* 현장체크 */}
           {activeTab === 2 && (
             <div>
+              {nearbyStats && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                  background: '#f5ecd4', border: '1px solid #e8c96a', borderRadius: 8,
+                  padding: '10px 14px', marginBottom: 14, fontSize: 12.5, color: '#5a4a1a',
+                }}>
+                  <span>
+                    📍 반경 500m 내 매물 {nearbyStats.count}곳 평균 —
+                    가시성 {nearbyStats.avgVisibility} · 접근성 {nearbyStats.avgAccessibility} · 공실률 체감 {nearbyStats.avgVacancyRate}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyNearbyStats}
+                    style={{
+                      marginLeft: 'auto', padding: '4px 12px', background: '#0d1b2e',
+                      color: '#fff', border: 'none', borderRadius: 6, fontSize: 11.5,
+                      fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    이 값으로 적용
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                 <Field label="가시성 (1~5점)">
                   <ScoreInput value={form.visibility_score} onChange={v => set('visibility_score', v)} />

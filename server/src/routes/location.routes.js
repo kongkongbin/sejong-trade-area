@@ -18,6 +18,60 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/locations/nearby-average — 반경 내 기존 매물들의 가시성/접근성/공실률 평균
+// (※ /:id 라우트보다 반드시 먼저 선언되어야 함 — 안 그러면 'nearby-average'가 id로 오인됨)
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (v) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+router.get('/nearby-average', requireAuth, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  const radius = Number(req.query.radius) || 500;
+  const excludeId = req.query.excludeId ? Number(req.query.excludeId) : null;
+
+  if (!lat || !lng) {
+    return res.status(400).json({ message: 'lat, lng가 필요합니다.' });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, lat, lng, visibility_score, accessibility_score, nearby_vacancy_rate
+       FROM location_data
+       WHERE lat IS NOT NULL AND lng IS NOT NULL`
+    );
+
+    const nearby = rows.filter((r) => {
+      if (excludeId && r.id === excludeId) return false;
+      return haversineMeters(lat, lng, Number(r.lat), Number(r.lng)) <= radius;
+    });
+
+    if (!nearby.length) {
+      return res.json({ count: 0 });
+    }
+
+    const avg = (key) =>
+      nearby.reduce((sum, r) => sum + Number(r[key] || 0), 0) / nearby.length;
+
+    res.json({
+      count: nearby.length,
+      avgVisibility: Math.round(avg('visibility_score') * 10) / 10,
+      avgAccessibility: Math.round(avg('accessibility_score') * 10) / 10,
+      avgVacancyRate: Math.round(avg('nearby_vacancy_rate')),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '평균 조회 실패' });
+  }
+});
+
 // GET /api/locations/:id — 단일 조회
 router.get('/:id', requireAuth, async (req, res) => {
   try {
