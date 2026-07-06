@@ -64,7 +64,6 @@ router.post('/message', requireAuth, async (req, res) => {
 
     const reply = response.data.content[0].text;
     const isComplete = reply.includes('[COMPLETE]');
-    const cleanReply = reply.replace('[COMPLETE]', '').trim();
 
     // JSON 데이터 추출
     const jsonMatch = reply.match(/```json\n?([\s\S]*?)\n?```/);
@@ -72,6 +71,12 @@ router.post('/message', requireAuth, async (req, res) => {
     if (jsonMatch) {
       try { extractedData = JSON.parse(jsonMatch[1]); } catch {}
     }
+
+    // 화면에 보여줄 텍스트에서는 [COMPLETE] 태그와 json 코드블록 둘 다 제거
+    const cleanReply = reply
+      .replace('[COMPLETE]', '')
+      .replace(/```json\n?[\s\S]*?\n?```/, '')
+      .trim();
 
     // DB 저장/업데이트
     let currentLocationId = locationId;
