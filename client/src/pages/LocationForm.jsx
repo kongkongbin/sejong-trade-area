@@ -47,7 +47,7 @@ const defaultForm = {
   premium: '', deposit: '', monthly_rent: '', interior_budget: '', other_initial_cost: '',
   target_business: '', avg_price_per_customer: '', expected_daily_sales: '', business_hours: '',
   visibility_score: 3, accessibility_score: 3, parking_available: false,
-  building_age: '', has_elevator: false, is_corner: false, floor_info: '',
+  building_age: '', has_elevator: false, is_corner: false, floor_info: '', area_pyeong: '',
   nearby_vacancy_rate: 0, redevelopment_plan: false, redevelopment_note: '', landlord_note: '',
   field_memo: '', contract_period: '', landlord_asking_rent: '', desired_rent: '',
 };
@@ -308,6 +308,9 @@ export default function LocationForm() {
                 </Field>
                 <Field label="층수 정보">
                   <input value={form.floor_info} onChange={e => set('floor_info', e.target.value)} style={inputStyle} placeholder="예: 지상 1층" />
+                </Field>
+                <Field label="전용면적 (평)">
+                  <input type="number" step="0.1" value={form.area_pyeong} onChange={e => set('area_pyeong', e.target.value)} style={inputStyle} placeholder="예: 15.5" />
                 </Field>
                 <Field label="건물 연식 (년)">
                   <input type="number" value={form.building_age} onChange={e => set('building_age', e.target.value)} style={inputStyle} placeholder="예: 15" />

@@ -133,7 +133,7 @@ async function generateAIOpinion({ locationData, analysisData }) {
     interior_budget, other_initial_cost, avg_price_per_customer,
     expected_daily_sales, business_hours, visibility_score,
     accessibility_score, parking_available, building_age,
-    has_elevator, is_corner, floor_info, nearby_vacancy_rate,
+    has_elevator, is_corner, floor_info, area_pyeong, nearby_vacancy_rate,
     redevelopment_plan, redevelopment_note, landlord_note,
     field_memo, contract_period, landlord_asking_rent, desired_rent,
   } = locationData;
@@ -156,6 +156,7 @@ async function generateAIOpinion({ locationData, analysisData }) {
 - 주소: ${address}
 - 입점 예정 업종: ${target_business || '미입력'}
 - 층수: ${floor_info || '미입력'}
+- 전용면적: ${area_pyeong ? `${area_pyeong}평` : '미입력'}
 - 코너 위치: ${is_corner ? '예' : '아니오'}
 
 ## 재무 현황
