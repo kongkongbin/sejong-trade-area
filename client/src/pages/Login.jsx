@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 
 export default function Login() {
@@ -7,6 +7,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const expired = searchParams.get('expired') === '1';
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -37,6 +39,9 @@ export default function Login() {
         <h1>상권/입지 분석</h1>
         <p className="login-subtitle">관리자 전용 내부 시스템입니다.</p>
 
+        {expired && !error && (
+          <p className="login-error">세션이 만료되어 자동 로그아웃되었습니다. 다시 로그인해주세요.</p>
+        )}
         {error && <p className="login-error">{error}</p>}
 
         <input
