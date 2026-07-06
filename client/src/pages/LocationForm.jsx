@@ -380,7 +380,7 @@ export default function LocationForm() {
                   </label>
                 ))}
               </div>
-              {form.redevelopment_plan && (
+              {!!form.redevelopment_plan && (
                 <Field label="재개발 관련 메모">
                   <input value={form.redevelopment_note} onChange={e => set('redevelopment_note', e.target.value)} style={inputStyle} placeholder="재개발 계획 상세" />
                 </Field>
