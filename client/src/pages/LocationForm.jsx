@@ -436,11 +436,7 @@ export default function LocationForm() {
 
       {/* AI 분석 섹션 — 저장 후에만 표시 */}
       {savedId && (
-        <div style={{
-          background: '#fff', borderRadius: 10, padding: 20,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          width: '100%', maxWidth: '100%', boxSizing: 'border-box',
-        }}>
+        <div style={{ background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>🤖 AI 종합 분석</h3>
             <button
@@ -493,13 +489,11 @@ export default function LocationForm() {
               </button>
 
               {showAiEditor ? (
-                <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                  <AIOpinionEditor
-                    locationId={savedId}
-                    initialData={aiData}
-                    onSave={updated => setAiData({ ...aiData, ...updated })}
-                  />
-                </div>
+                <AIOpinionEditor
+                  locationId={savedId}
+                  initialData={aiData}
+                  onSave={updated => setAiData({ ...aiData, ...updated })}
+                />
               ) : (
                 <div style={{ fontSize: 13, lineHeight: 1.8, color: '#2d3748', whiteSpace: 'pre-wrap', marginTop: 10 }}>
                   {aiData.summary && <p style={{ marginBottom: 10 }}>{aiData.summary}</p>}
