@@ -8,6 +8,10 @@ const VERDICT_STYLE = {
   NO_GO: { label: 'NO-GO', bg: '#e74c3c', color: '#fff' },
 };
 
+const GRADE_COLOR = {
+  'A+': '#27ae60', A: '#2ecc71', 'B+': '#3498db', B: '#f39c12', C: '#e67e22', D: '#e74c3c',
+};
+
 const DAEGU_GU = ['전체', '중구', '동구', '서구', '남구', '북구', '수성구', '달서구', '달성군', '군위군'];
 
 export default function LocationList() {
@@ -214,12 +218,21 @@ export default function LocationList() {
                       {item.monthly_rent ? `${Number(item.monthly_rent).toLocaleString()}만원` : '-'}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      {verdict ? (
-                        <span style={{
-                          padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                          background: verdict.bg, color: verdict.color,
-                        }}>{verdict.label}</span>
-                      ) : <span style={{ color: '#ccc', fontSize: 12 }}>미분석</span>}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {verdict ? (
+                          <span style={{
+                            padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                            background: verdict.bg, color: verdict.color,
+                          }}>{verdict.label}</span>
+                        ) : <span style={{ color: '#ccc', fontSize: 12 }}>미분석</span>}
+                        {item.score_grade && (
+                          <span style={{
+                            padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                            background: '#fff', color: GRADE_COLOR[item.score_grade] || '#5a6a7e',
+                            border: `1.5px solid ${GRADE_COLOR[item.score_grade] || '#e2e6ea'}`,
+                          }}>{item.score_grade}</span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#9aa5b1', whiteSpace: 'nowrap' }}>
                       {new Date(item.created_at).toLocaleDateString('ko-KR')}
@@ -258,12 +271,21 @@ export default function LocationList() {
                   <div style={{ fontWeight: 600, fontSize: 14, flex: 1, marginRight: 8 }}>
                     {item.address || '-'}
                   </div>
-                  {verdict ? (
-                    <span style={{
-                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                      background: verdict.bg, color: verdict.color, whiteSpace: 'nowrap',
-                    }}>{verdict.label}</span>
-                  ) : <span style={{ color: '#ccc', fontSize: 11, whiteSpace: 'nowrap' }}>미분석</span>}
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {verdict ? (
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                        background: verdict.bg, color: verdict.color, whiteSpace: 'nowrap',
+                      }}>{verdict.label}</span>
+                    ) : <span style={{ color: '#ccc', fontSize: 11, whiteSpace: 'nowrap' }}>미분석</span>}
+                    {item.score_grade && (
+                      <span style={{
+                        padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                        background: '#fff', color: GRADE_COLOR[item.score_grade] || '#5a6a7e',
+                        border: `1.5px solid ${GRADE_COLOR[item.score_grade] || '#e2e6ea'}`, whiteSpace: 'nowrap',
+                      }}>{item.score_grade}</span>
+                    )}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5, color: '#5a6a7e' }}>
                   <span>

@@ -4,7 +4,7 @@ import api from '../api/axios';
 import AIOpinionEditor from '../components/AIOpinionEditor';
 import { printLocationReport } from '../components/LocationPrintReport';
 
-const TABS = ['재무정보', '업종정보', '현장체크', '계약정보', '메모'];
+const TABS = ['재무정보', '업종정보', '현장체크', '계약정보', '결과추적', '메모'];
 
 const inputStyle = {
   width: '100%', height: 38, padding: '0 12px',
@@ -50,6 +50,8 @@ const defaultForm = {
   building_age: '', has_elevator: false, is_corner: false, floor_info: '', area_pyeong: '',
   nearby_vacancy_rate: 0, redevelopment_plan: false, redevelopment_note: '', landlord_note: '',
   field_memo: '', contract_period: '', landlord_asking_rent: '', desired_rent: '',
+  actual_contract_status: 'PENDING', actual_open_date: '', actual_close_date: '',
+  actual_monthly_revenue: '', outcome_note: '',
 };
 
 const VERDICT_OPTIONS = [
@@ -57,6 +59,15 @@ const VERDICT_OPTIONS = [
   { value: 'CONDITIONAL_GO', label: '⚠️ 조건부 GO', color: '#f39c12' },
   { value: 'NO_GO', label: '❌ NO-GO', color: '#e74c3c' },
 ];
+
+const GRADE_INFO = {
+  'A+': { label: '최우수', color: '#27ae60' },
+  A: { label: '우수', color: '#2ecc71' },
+  'B+': { label: '양호', color: '#3498db' },
+  B: { label: '보통', color: '#f39c12' },
+  C: { label: '미흡', color: '#e67e22' },
+  D: { label: '취약', color: '#e74c3c' },
+};
 
 function formatManwon(value) {
   const v = Math.round(Number(value) || 0);
@@ -86,7 +97,12 @@ export default function LocationForm() {
       // 수정 모드 — 기존 데이터 불러오기
       api.get(`/locations/${id}`).then(res => {
         const data = res.data;
-        setForm(data);
+        const toDateInput = (v) => (v ? String(v).slice(0, 10) : '');
+        setForm({
+          ...data,
+          actual_open_date: toDateInput(data.actual_open_date),
+          actual_close_date: toDateInput(data.actual_close_date),
+        });
         setAddressInput(data.address);
         setSavedId(Number(id));
         if (data.lat && data.lng) fetchNearbyStats(data.lat, data.lng);
@@ -106,6 +122,9 @@ export default function LocationForm() {
             financial: data.ai_financial || '',
             checklist: parseJson(data.ai_checklist),
             verdictReason: data.ai_verdict_reason || '',
+            scoreGrade: data.score_grade ? { grade: data.score_grade, ...GRADE_INFO[data.score_grade] } : null,
+            scoreTotal: data.score_total,
+            percentile: null, // 저장된 값 로드 시점엔 실시간 백분위는 재계산 안 함
           });
         }
       });
@@ -415,8 +434,57 @@ export default function LocationForm() {
             </div>
           )}
 
-          {/* 메모 */}
+          {/* 결과추적 — 미래 머신러닝을 위한 실제 결과 데이터 축적 */}
           {activeTab === 4 && (
+            <div>
+              <Field label="실제 계약 진행 상태">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { value: 'PENDING', label: '진행중' },
+                    { value: 'SUCCESS', label: '성사' },
+                    { value: 'FAILED', label: '미성사' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => set('actual_contract_status', opt.value)}
+                      style={{
+                        flex: 1, padding: '10px 0', border: 'none', borderRadius: 8,
+                        background: form.actual_contract_status === opt.value ? '#0d1b2e' : '#f0f2f5',
+                        color: form.actual_contract_status === opt.value ? '#fff' : '#5a6a7e',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >{opt.label}</button>
+                  ))}
+                </div>
+              </Field>
+              <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+                <Field label="실제 개업일">
+                  <input type="date" value={form.actual_open_date || ''} onChange={e => set('actual_open_date', e.target.value)} style={inputStyle} />
+                </Field>
+                <Field label="실제 폐업일 (있다면)">
+                  <input type="date" value={form.actual_close_date || ''} onChange={e => set('actual_close_date', e.target.value)} style={inputStyle} />
+                </Field>
+                <Field label="실제 월매출 (만원)">
+                  <input type="number" value={form.actual_monthly_revenue || ''} onChange={e => set('actual_monthly_revenue', e.target.value)} style={inputStyle} placeholder="파악되면 입력" />
+                </Field>
+              </div>
+              <Field label="결과 관련 메모">
+                <textarea
+                  value={form.outcome_note}
+                  onChange={e => set('outcome_note', e.target.value)}
+                  placeholder="실제 어떻게 됐는지, 왜 그랬는지 자유롭게 기록"
+                  style={{ ...inputStyle, height: 100, padding: 12, resize: 'vertical', lineHeight: 1.6 }}
+                />
+              </Field>
+              <p style={{ fontSize: 11.5, color: '#aaa', marginTop: -6 }}>
+                💡 이 정보들은 나중에 충분히 쌓이면 자체 예측 모델을 만드는 데 쓰일 재료예요. 지금 당장은 참고용으로 편할 때 채워두시면 됩니다.
+              </p>
+            </div>
+          )}
+
+          {/* 메모 */}
+          {activeTab === 5 && (
             <Field label="현장 메모">
               <textarea
                 value={form.field_memo}
@@ -483,6 +551,21 @@ export default function LocationForm() {
                   color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 14,
                 }}>
                   {aiData.verdict === 'GO' ? '✅ GO' : aiData.verdict === 'NO_GO' ? '❌ NO-GO' : '⚠️ 조건부 GO'}
+                </div>
+              )}
+
+              {aiData.scoreGrade && (
+                <div style={{
+                  display: 'inline-block', padding: '6px 14px', borderRadius: 8,
+                  border: `2px solid ${aiData.scoreGrade.color}`, color: aiData.scoreGrade.color,
+                  fontWeight: 700, fontSize: 14, marginBottom: 14, marginLeft: 8,
+                }}>
+                  {aiData.scoreGrade.grade}등급 ({aiData.scoreGrade.label}) · {aiData.scoreTotal}점
+                  {aiData.percentile != null && (
+                    <span style={{ fontWeight: 500, fontSize: 12, marginLeft: 6 }}>
+                      · 저장된 매물 중 상위 {100 - aiData.percentile + 1}%
+                    </span>
+                  )}
                 </div>
               )}
 

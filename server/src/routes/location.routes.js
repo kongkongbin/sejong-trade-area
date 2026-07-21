@@ -3,12 +3,17 @@ const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const pool = require('../config/db');
 const { generateAIOpinion } = require('../services/ai.service');
+const { getPopulationAnalysis } = require('../services/population.service');
+const { getFranchiseAnalysis } = require('../services/store.service');
+const { getTransitAnalysis } = require('../services/transit.service');
+const { getFacilityAnalysis } = require('../services/facility.service');
+const { calcScore } = require('../services/score.service');
 
 // GET /api/locations — 전체 목록
 router.get('/', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, address, lat, lng, target_business, ai_verdict, created_at
+      `SELECT id, address, lat, lng, target_business, ai_verdict, score_grade, score_total, created_at
        FROM location_data
        ORDER BY created_at DESC`
     );
@@ -140,7 +145,9 @@ router.put('/:id', requireAuth, async (req, res) => {
         building_age=?, has_elevator=?, is_corner=?, floor_info=?, area_pyeong=?,
         nearby_vacancy_rate=?, redevelopment_plan=?, redevelopment_note=?,
         landlord_note=?, field_memo=?,
-        contract_period=?, landlord_asking_rent=?, desired_rent=?
+        contract_period=?, landlord_asking_rent=?, desired_rent=?,
+        actual_contract_status=?, actual_open_date=?, actual_close_date=?,
+        actual_monthly_revenue=?, outcome_note=?
        WHERE id=?`,
       [
         data.address, data.lat, data.lng, data.analysis_radius || 500,
@@ -157,6 +164,9 @@ router.put('/:id', requireAuth, async (req, res) => {
         data.field_memo || '',
         data.contract_period || '', data.landlord_asking_rent || 0,
         data.desired_rent || 0,
+        data.actual_contract_status || 'PENDING',
+        data.actual_open_date || null, data.actual_close_date || null,
+        data.actual_monthly_revenue || null, data.outcome_note || '',
         req.params.id,
       ]
     );
@@ -178,20 +188,49 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 // POST /api/locations/:id/generate-ai — AI 의견 생성
 router.post('/:id/generate-ai', requireAuth, async (req, res) => {
-  const { analysisData } = req.body;
   try {
     const [rows] = await pool.query('SELECT * FROM location_data WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ message: '데이터를 찾을 수 없습니다.' });
 
     const locationData = rows[0];
+    const { lat, lng } = locationData;
+    const radius = locationData.analysis_radius || 500;
+
+    // 서버에서 직접 생활인구/프랜차이즈/교통/시설 분석 + 종합점수 계산
+    // (반경/좌표는 이미 저장된 매물 기준 — 클라이언트가 따로 안 보내도 됨)
+    let populationData = null, franchiseData = null, transitData = null, facilityData = null, scoreData = null;
+    if (lat && lng) {
+      [populationData, franchiseData, transitData, facilityData] = await Promise.all([
+        getPopulationAnalysis(lat, lng).catch(() => null),
+        getFranchiseAnalysis(lat, lng, radius).catch(() => null),
+        getTransitAnalysis(lat, lng, radius).catch(() => null),
+        getFacilityAnalysis(lat, lng, radius).catch(() => null),
+      ]);
+      scoreData = await calcScore({ populationData, transitData, franchiseData, facilityData }).catch(() => null);
+    }
+
+    const analysisData = { populationData, franchiseData, transitData, facilityData, scoreData, radius };
     const result = await generateAIOpinion({ locationData, analysisData });
 
-    // 구조화된 데이터 DB 저장
+    // 다른(등급 계산 완료된) 매물들과 비교한 백분위 계산
+    let percentile = null;
+    if (scoreData) {
+      const [others] = await pool.query(
+        `SELECT score_total FROM location_data WHERE score_total IS NOT NULL AND id != ?`,
+        [req.params.id]
+      );
+      const totalCount = others.length + 1;
+      const lowerCount = others.filter((o) => o.score_total <= scoreData.totalScore).length + 1;
+      percentile = Math.round((lowerCount / totalCount) * 100);
+    }
+
+    // 구조화된 데이터 + 점수/등급 DB 저장
     await pool.query(
       `UPDATE location_data SET
         ai_opinion=?, ai_verdict=?, ai_generated_at=NOW(),
         ai_summary=?, ai_strengths=?, ai_risks=?,
-        ai_financial=?, ai_checklist=?, ai_verdict_reason=?
+        ai_financial=?, ai_checklist=?, ai_verdict_reason=?,
+        score_total=?, score_grade=?
        WHERE id=?`,
       [
         result.opinion,
@@ -202,11 +241,18 @@ router.post('/:id/generate-ai', requireAuth, async (req, res) => {
         result.financial,
         JSON.stringify(result.checklist),
         result.verdictReason,
+        scoreData?.totalScore ?? null,
+        scoreData?.grade?.grade ?? null,
         req.params.id,
       ]
     );
 
-    res.json(result);
+    res.json({
+      ...result,
+      scoreTotal: scoreData?.totalScore ?? null,
+      scoreGrade: scoreData?.grade ?? null,
+      percentile,
+    });
   } catch (err) {
     console.error('AI 생성 오류:', err.message);
     res.status(500).json({ message: 'AI 의견 생성 중 오류가 발생했습니다.' });
