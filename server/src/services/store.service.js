@@ -93,6 +93,56 @@ function aggregateByMiddleCategory(items, lclsCd) {
     .sort((a, b) => b.count - a.count);
 }
 
+// 사업장 유형(가게/상가) 분석에 의미 있는 대분류만 대상으로 함
+// (공공행정/운수창고 등은 "빈틈 업종 추천"에 부적합해서 제외)
+const RELEVANT_LARGE_CATEGORIES = ['I2', 'G2', 'S2', 'P1', 'Q1', 'R1'];
+
+// 중분류 전체 목록 캐시 (하루 동안 재사용 — 자주 안 바뀌는 데이터)
+const middleListCache = {}; // { [lclsCd]: { data, fetchedAt } }
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function fetchMiddleUpjongList(lclsCd) {
+  const cached = middleListCache[lclsCd];
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const res = await axios.get(`${BASE_URL}/middleUpjongList`, {
+    params: { indsLclsCd: lclsCd, type: 'json', serviceKey: SERVICE_KEY },
+  });
+  const items = res.data?.body?.items || [];
+  const list = items.map((it) => ({ code: it.indsMclsCd, name: it.indsMclsNm }));
+
+  middleListCache[lclsCd] = { data: list, fetchedAt: Date.now() };
+  return list;
+}
+
+// 반경 안에 매장이 아예 없는 업종(중분류) 찾기 — "빈틈 업종 추천"
+async function findMissingCategories(items) {
+  const existingMidCodes = new Set(items.map((it) => it.indsMclsCd));
+  const result = [];
+
+  for (const lclsCd of RELEVANT_LARGE_CATEGORIES) {
+    let fullList;
+    try {
+      fullList = await fetchMiddleUpjongList(lclsCd);
+    } catch {
+      continue; // 이 대분류 조회 실패 시 건너뜀 (전체 실패로 이어지지 않게)
+    }
+
+    const missing = fullList.filter((m) => !existingMidCodes.has(m.code));
+    if (missing.length) {
+      result.push({
+        largeCategoryCode: lclsCd,
+        largeCategoryName: CATEGORY_MAP[lclsCd] || lclsCd,
+        missing,
+      });
+    }
+  }
+
+  return result;
+}
+
 async function getFranchiseAnalysis(lat, lng, radius) {
   const { items, totalCount } = await fetchAllStoresInRadius(lng, lat, radius);
   const byCategory = aggregateByCategory(items);
@@ -115,6 +165,7 @@ async function getFranchiseAnalysis(lat, lng, radius) {
     byCategory,
     foodDetail: aggregateByMiddleCategory(items, 'I2'),
     allStores,
+    missingCategories: await findMissingCategories(items),
   };
 }
 

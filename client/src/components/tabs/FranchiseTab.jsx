@@ -52,6 +52,7 @@ export default function FranchiseTab({ data, loading, onStoreClick, activeStoreI
   const [openCategory, setOpenCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [showMissing, setShowMissing] = useState(false);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim() || !data?.allStores) return [];
@@ -79,17 +80,60 @@ export default function FranchiseTab({ data, loading, onStoreClick, activeStoreI
         <p style={{ fontSize: 13, color: '#666', margin: 0 }}>
           총 <strong>{data.totalCount.toLocaleString()}개</strong> 상가업소
         </p>
-        <button
-          onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); }}
-          style={{
-            fontSize: 12, padding: '4px 10px', border: '1px solid #d8dbe0',
-            borderRadius: 14, background: showSearch ? '#0d1b2e' : '#fff',
-            color: showSearch ? '#fff' : '#444', cursor: 'pointer',
-          }}
-        >
-          🔍 상호 검색
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowMissing(!showMissing)}
+            style={{
+              fontSize: 12, padding: '4px 10px', border: '1px solid #d8dbe0',
+              borderRadius: 14, background: showMissing ? '#c9a84c' : '#fff',
+              color: showMissing ? '#fff' : '#444', cursor: 'pointer',
+            }}
+          >
+            🕳️ 빈틈 업종
+          </button>
+          <button
+            onClick={() => { setShowSearch(!showSearch); setSearchQuery(''); }}
+            style={{
+              fontSize: 12, padding: '4px 10px', border: '1px solid #d8dbe0',
+              borderRadius: 14, background: showSearch ? '#0d1b2e' : '#fff',
+              color: showSearch ? '#fff' : '#444', cursor: 'pointer',
+            }}
+          >
+            🔍 상호 검색
+          </button>
+        </div>
       </div>
+
+      {showMissing && (
+        <div style={{ marginBottom: 14, background: '#fdf9ef', border: '1px solid #e8c96a', borderRadius: 8, padding: '12px 14px' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#5a4a1a', margin: '0 0 8px' }}>
+            🕳️ 반경 내에 없는 업종 (창업 빈틈)
+          </p>
+          {(!data.missingCategories || data.missingCategories.length === 0) ? (
+            <p style={{ fontSize: 12, color: '#9a8a5a', margin: 0 }}>
+              주요 업종이 대부분 이미 입점해있어 뚜렷한 빈틈이 안 보여요.
+            </p>
+          ) : (
+            data.missingCategories.map((group) => (
+              <div key={group.largeCategoryCode} style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: '#5a4a1a' }}>
+                  {group.largeCategoryName}
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {group.missing.map((m) => (
+                    <span key={m.code} style={{
+                      fontSize: 11, padding: '3px 9px', background: '#fff',
+                      border: '1px solid #e8c96a', borderRadius: 12, color: '#5a4a1a',
+                    }}>
+                      {m.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {showSearch && (
         <div style={{ marginBottom: 12 }}>
